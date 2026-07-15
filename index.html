@@ -1436,6 +1436,7 @@ function exportOrdersToExcel(){
     'จังหวัด': o.shipping.province,
     'รหัสไปรษณีย์': o.shipping.zipcode,
     'ชื่อสินค้า': i.name,
+    'เพศ': products.find(p => p.id === i.pid)?.gender || 'ทุกเพศ',
     'ไซซ์': i.size,
     'จำนวน': i.qty,
     'ราคาตัวละ (บาท)': i.price,
@@ -1449,7 +1450,7 @@ function exportOrdersToExcel(){
   const ws = XLSX.utils.json_to_sheet(rows);
   ws['!cols'] = [
     {wch:16},{wch:20},{wch:20},{wch:14},{wch:36},{wch:14},{wch:10},
-    {wch:26},{wch:8},{wch:8},{wch:14},{wch:16},{wch:18},{wch:14},{wch:16},{wch:40}
+    {wch:26},{wch:10},{wch:8},{wch:8},{wch:14},{wch:16},{wch:18},{wch:14},{wch:16},{wch:40}
   ];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'รายงานคำสั่งซื้อ');
