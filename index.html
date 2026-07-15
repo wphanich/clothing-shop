@@ -582,29 +582,30 @@ header{
       (Firebase Console → Project settings → Your apps → Web app)
    ============================================================ */
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "XXXXXXXXXX",
-  appId: "1:XXXXXXXXXX:web:XXXXXXXXXXXX"
+  apiKey: "AIzaSyBagykPem34jEqlDNEfuEv9-oJMlFkxS_o",
+  authDomain: "tshite-51981.firebaseapp.com",
+  projectId: "tshite-51981",
+  storageBucket: "tshite-51981.firebasestorage.app",
+  messagingSenderId: "556297532710",
+  appId: "1:556297532710:web:52dd5e3ab04cd0e3b83de7",
+  measurementId: "G-7B2BD833LD"
 };
 
 /* เบอร์ผู้ดูแลร้าน (รูปแบบ +66) — ล็อกอินด้วยเบอร์นี้จะเห็นเมนู "จัดการร้าน" */
-const ADMIN_PHONES = ["+66812345678"];
+const ADMIN_PHONES = ["+66863540995"];
 
 /* ข้อมูลบัญชีธนาคาร/PromptPay สำหรับให้ลูกค้าโอนเงิน — แก้เป็นข้อมูลจริงของร้าน
    promptpayId ใส่ได้ทั้งเบอร์มือถือ (เช่น 0812345678) หรือเลขผู้เสียภาษี 13 หลัก */
 const BANK_INFO = {
-  bankName: "ธนาคารกสิกรไทย",
-  accountNumber: "XXX-X-XXXXX-X",
-  accountName: "ชื่อ-นามสกุล เจ้าของร้าน",
-  promptpayId: "0812345678"
+  bankName: "ธนาคารกรุงไทย",
+  accountNumber: "184-1-03833-4",
+  accountName: "วิทยา-พานิชย์ เจ้าของร้าน",
+  promptpayId: "0863540995"
 };
 
 /* คีย์ฟรีจาก imgbb.com (สมัครฟรีด้วยอีเมล ไม่ต้องผูกบัตร) ใช้สำหรับอัปโหลดรูปสินค้า
    สมัครได้ที่ https://api.imgbb.com/ แล้วแทนที่ค่านี้ */
-const IMGBB_API_KEY = "YOUR_IMGBB_API_KEY";
+const IMGBB_API_KEY = "177ab8734a3c8cc87d13b18f266c337c";
 
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
