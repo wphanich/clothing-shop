@@ -1090,6 +1090,11 @@ function loginPrompt(){
     เข้าสู่ระบบด้วยเบอร์มือถือเพื่อดูคำสั่งซื้อของคุณ<br><br>
     <button class="add-btn" onclick="openLogin()">เข้าสู่ระบบ</button></div>`;
 }
+function itemGenderLabel(pid){
+  const p = products.find(x => x.id === pid);
+  const g = p?.gender;
+  return (g && g !== 'ทุกเพศ') ? ' · ' + g : '';
+}
 function orderCard(o, adminView=false){
   const d = o.createdAt?.toDate ? o.createdAt.toDate().toLocaleString('th-TH',{dateStyle:'medium',timeStyle:'short'}) : '';
   const payStatus = o.paymentStatus || 'unpaid';
