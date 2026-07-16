@@ -1104,7 +1104,7 @@ function orderCard(o, adminView=false){
       <span class="order-id">#${o.orderNo || o.id.slice(0,8)} <span class="hint">· ${d}</span></span>
       <span class="status ${o.status}">${STATUS_TH[o.status]||o.status}</span>
     </div>
-    <div class="order-items">${o.items.map(i=>`${i.name} (${i.size}) × ${i.qty}`).join(' · ')}</div>
+    <div class="order-items">${o.items.map(i=>`${i.name} (${i.size}${itemGenderLabel(i.pid)}) × ${i.qty}`).join(' · ')}</div>
     <div style="display:flex;justify-content:space-between;margin-top:8px">
       <span class="hint">${adminView ? o.shipping.name + ' · ' + o.shipping.address + ' จ.' + o.shipping.province + ' ' + o.shipping.zipcode : 'จัดส่งถึง: ' + o.shipping.name}</span>
       <b style="font-family:'Prompt'">${fmt(o.total)}</b>
@@ -1555,7 +1555,7 @@ function renderAdminOrders(){
     return `<tr>
       <td><b>#${o.orderNo||o.id.slice(0,8)}</b><br><span class="hint">${o.createdAt?.toDate?o.createdAt.toDate().toLocaleString('th-TH',{dateStyle:'short',timeStyle:'short'}):''}</span></td>
       <td>${o.shipping.name}<br><span class="hint">${o.shipping.address} จ.${o.shipping.province} ${o.shipping.zipcode}<br>โทร ${fromE164(o.shipping.phone)}</span></td>
-      <td>${o.items.map(i=>`${i.name} (${i.size}) × ${i.qty}`).join('<br>')}</td>
+      <td>${o.items.map(i=>`${i.name} (${i.size}${itemGenderLabel(i.pid)}) × ${i.qty}`).join('<br>')}</td>
       <td><b>${fmt(o.total)}</b></td>
       <td>
         <span class="paybadge ${payClass}">${PAYMENT_STATUS_TH[payStatus]}</span><br>
