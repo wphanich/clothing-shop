@@ -147,7 +147,28 @@ header{
   display:flex;flex-direction:column;
 }
 .card:hover{transform:translateY(-3px);box-shadow:var(--shadow)}
-.card-img{aspect-ratio:4/5;background:#ECECE7;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.card-img{aspect-ratio:4/5;background:#ECECE7;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
+.img-track{display:flex;width:100%;height:100%;transition:transform .3s ease}
+.img-slide{flex:0 0 100%;width:100%;height:100%}
+.img-slide img{width:100%;height:100%;object-fit:cover;display:block}
+.img-nav{
+  position:absolute;top:50%;transform:translateY(-50%);z-index:2;
+  background:rgba(255,255,255,.9);border:none;width:26px;height:26px;border-radius:50%;
+  font-size:15px;line-height:1;cursor:pointer;color:var(--ink);
+  display:flex;align-items:center;justify-content:center;
+}
+.img-nav.prev{left:6px}
+.img-nav.next{right:6px}
+.img-dots{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);display:flex;gap:5px;z-index:2}
+.img-dots .dot{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.55);border:none;padding:0;cursor:pointer}
+.img-dots .dot.active{background:#fff}
+.image-list{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.image-list .img-item{position:relative;width:64px;height:76px;border-radius:8px;overflow:hidden;background:#ECECE7}
+.image-list .img-item img{width:100%;height:100%;object-fit:cover;display:block}
+.image-list .img-item .rm-btn{
+  position:absolute;top:2px;right:2px;background:rgba(0,0,0,.6);color:#fff;border:none;
+  border-radius:50%;width:18px;height:18px;font-size:12px;line-height:1;cursor:pointer;
+}
 .card-img img{width:100%;height:100%;object-fit:cover}
 .card-img .noimg{font-size:44px;opacity:.35}
 .card-body{padding:14px 16px 16px;flex:1;display:flex;flex-direction:column;gap:6px}
@@ -627,7 +648,7 @@ header{
       <div><label>ไซซ์ (คั่นด้วย ,)</label><input type="text" id="prSizes" placeholder="S,M,L,XL"></div>
       <div><label>สี (คั่นด้วย ,)</label><input type="text" id="prColors" placeholder="กรมท่า,ขาว,ดำ"></div>
     </div>
-    <label>รูปภาพสินค้า</label>
+    <label>รูปภาพสินค้า (เพิ่มได้หลายรูป ลูกค้าเลื่อนดูได้)</label>
     <div class="upload-box">
       <div class="upload-preview" id="prPreview">👕</div>
       <div class="upload-info">
@@ -635,12 +656,15 @@ header{
         <div class="upload-status" id="prUploadStatus">รองรับ JPG/PNG ไม่เกิน 5MB</div>
         <div class="progress-track" id="prProgressTrack" style="display:none"><div class="progress-fill" id="prProgressFill"></div></div>
       </div>
-      <button type="button" class="upload-pick-btn" onclick="document.getElementById('prFile').click()">เลือกรูป</button>
+      <button type="button" class="upload-pick-btn" onclick="document.getElementById('prFile').click()">เพิ่มรูป</button>
       <input type="file" id="prFile" accept="image/png,image/jpeg,image/webp" style="display:none" onchange="onPickProductImage(event)">
     </div>
     <div class="or-divider">หรือ</div>
-    <label>ลิงก์รูปภาพ (URL)</label>
-    <input type="url" id="prImage" placeholder="https://...jpg" oninput="onManualImageUrl()">
+    <div style="display:flex;gap:8px">
+      <input type="url" id="prImageUrlInput" placeholder="https://...jpg" style="flex:1">
+      <button type="button" class="mini-btn" onclick="addManualProductImageUrl()">เพิ่มลิงก์</button>
+    </div>
+    <div class="image-list" id="prImageList"></div>
     <label style="display:flex;align-items:center;gap:8px;margin-top:14px;font-weight:600">
       <input type="checkbox" id="prActive" checked style="width:auto"> เปิดขายสินค้านี้
     </label>
@@ -948,8 +972,18 @@ function renderCatalog(){
     const genderSelect = (p.genders||[]).length
       ? `<select id="gender-${p.id}" style="width:auto;padding:6px 10px;font-size:13px;border-radius:8px">
            ${p.genders.map(g=>`<option>${g}</option>`).join('')}</select>` : '';
+    const imgs = productImages(p);
+    const imgHtml = imgs.length ? `
+      <div class="img-track" id="imgtrack-${p.id}">
+        ${imgs.map(url=>`<div class="img-slide"><img src="${url}" alt="${p.name}" loading="lazy"></div>`).join('')}
+      </div>
+      ${imgs.length>1 ? `
+        <button type="button" class="img-nav prev" onclick="event.stopPropagation(); slideProductImage('${p.id}', -1)">‹</button>
+        <button type="button" class="img-nav next" onclick="event.stopPropagation(); slideProductImage('${p.id}', 1)">›</button>
+        <div class="img-dots">${imgs.map((_,i)=>`<button type="button" class="dot dot-${p.id} ${i===0?'active':''}" onclick="event.stopPropagation(); goToProductImage('${p.id}', ${i})"></button>`).join('')}</div>
+      ` : ''}` : `<div class="noimg">👕</div>`;
     return `<div class="card">
-      <div class="card-img">${p.image ? `<img src="${p.image}" alt="${p.name}" loading="lazy">` : `<div class="noimg">👕</div>`}</div>
+      <div class="card-img" ontouchstart="onCardTouchStart(event,'${p.id}')" ontouchend="onCardTouchEnd(event,'${p.id}')">${imgHtml}</div>
       <div class="card-body">
         <div class="card-cat">${p.category||'อื่นๆ'}</div>
         <div class="card-name">${p.name}</div>
@@ -969,6 +1003,36 @@ function renderCatalog(){
 }
 function setCat(c){ activeCat = c; renderCatalog(); }
 function setGender(g){ activeGender = g; activeCat = 'ทั้งหมด'; renderCatalog(); }
+
+let productImageIndex = {};
+
+function applyProductImageIndex(pid, idx){
+  const track = el('imgtrack-'+pid);
+  if (track) track.style.transform = `translateX(-${idx*100}%)`;
+  document.querySelectorAll(`.dot-${pid}`).forEach((d,i)=>d.classList.toggle('active', i===idx));
+}
+function slideProductImage(pid, dir){
+  const p = products.find(x=>x.id===pid); if (!p) return;
+  const imgs = productImages(p);
+  if (imgs.length < 2) return;
+  let idx = ((productImageIndex[pid] || 0) + dir + imgs.length) % imgs.length;
+  productImageIndex[pid] = idx;
+  applyProductImageIndex(pid, idx);
+}
+function goToProductImage(pid, idx){
+  productImageIndex[pid] = idx;
+  applyProductImageIndex(pid, idx);
+}
+let swipeStartX = {};
+function onCardTouchStart(e, pid){
+  swipeStartX[pid] = e.changedTouches[0].clientX;
+}
+function onCardTouchEnd(e, pid){
+  if (swipeStartX[pid] === undefined) return;
+  const dx = e.changedTouches[0].clientX - swipeStartX[pid];
+  if (Math.abs(dx) > 40) slideProductImage(pid, dx < 0 ? 1 : -1);
+  delete swipeStartX[pid];
+}
 
 /* ============================================================
    6) ตะกร้าสินค้า (เก็บใน localStorage)
@@ -1211,24 +1275,46 @@ function openProductForm(id){
   el('prGenders').value = (p.genders||[]).join(',');
   el('prSizes').value = (p.sizes||[]).join(',');
   el('prColors').value = (p.colors||[]).join(',');
-  el('prImage').value = p.image || '';
   el('prActive').checked = p.active !== false;
   el('prFile').value = '';
+  el('prImageUrlInput').value = '';
   isUploadingImage = false;
   el('prProgressTrack').style.display = 'none';
   el('prFilename').textContent = 'ยังไม่ได้เลือกรูป';
   el('prUploadStatus').className = 'upload-status';
   el('prUploadStatus').textContent = 'รองรับ JPG/PNG ไม่เกิน 5MB';
-  updateImagePreview(p.image || '');
+  currentProductImages = productImages(p).slice();
+  renderProductImageList();
   el('productModal').classList.add('show');
 }
 
-function updateImagePreview(url){
-  el('prPreview').innerHTML = url ? `<img src="${url}" onerror="this.parentNode.innerHTML='👕'">` : '👕';
+/* ดึงรายการรูปของสินค้า รองรับข้อมูลเก่าที่มีแค่ p.image เดี่ยว */
+function productImages(p){
+  if (p.images && p.images.length) return p.images;
+  return p.image ? [p.image] : [];
 }
 
-function onManualImageUrl(){
-  updateImagePreview(el('prImage').value.trim());
+let currentProductImages = [];
+
+function renderProductImageList(){
+  el('prPreview').innerHTML = currentProductImages.length
+    ? `<img src="${currentProductImages[0]}" onerror="this.parentNode.innerHTML='👕'">` : '👕';
+  el('prImageList').innerHTML = currentProductImages.map((url, i) => `
+    <div class="img-item">
+      <img src="${url}" onerror="this.style.opacity=0.3">
+      <button type="button" class="rm-btn" onclick="removeProductImage(${i})">×</button>
+    </div>`).join('');
+}
+function removeProductImage(i){
+  currentProductImages.splice(i,1);
+  renderProductImageList();
+}
+function addManualProductImageUrl(){
+  const url = el('prImageUrlInput').value.trim();
+  if (!url) return;
+  currentProductImages.push(url);
+  el('prImageUrlInput').value = '';
+  renderProductImageList();
 }
 
 function uploadImageToImgbb(file, onProgress){
@@ -1265,7 +1351,6 @@ async function onPickProductImage(event){
     toast('ขนาดไฟล์ต้องไม่เกิน 5MB'); event.target.value=''; return;
   }
   el('prFilename').textContent = file.name;
-  updateImagePreview(URL.createObjectURL(file));
   el('prProgressTrack').style.display = '';
   el('prProgressFill').style.width = '0%';
   const statusEl = el('prUploadStatus');
@@ -1278,10 +1363,11 @@ async function onPickProductImage(event){
       el('prProgressFill').style.width = pct + '%';
       statusEl.textContent = `กำลังอัปโหลด... ${pct}%`;
     });
-    el('prImage').value = url;
-    updateImagePreview(url);
+    currentProductImages.push(url);
+    renderProductImageList();
     statusEl.className = 'upload-status ok';
     statusEl.textContent = 'อัปโหลดสำเร็จ';
+    event.target.value = '';
   }catch(err){
     statusEl.className = 'upload-status err';
     statusEl.textContent = 'อัปโหลดไม่สำเร็จ: ' + err.message;
@@ -1393,7 +1479,8 @@ async function saveProduct(){
     genders: el('prGenders').value.split(',').map(s=>s.trim()).filter(Boolean),
     sizes: el('prSizes').value.split(',').map(s=>s.trim()).filter(Boolean),
     colors: el('prColors').value.split(',').map(s=>s.trim()).filter(Boolean),
-    image: el('prImage').value.trim(),
+    images: currentProductImages,
+    image: currentProductImages[0] || '',
     active: el('prActive').checked,
     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
   };
