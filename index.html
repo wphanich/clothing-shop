@@ -1079,7 +1079,7 @@ function renderCatalog(){
            ${p.colors.map(c=>`<option>${c}</option>`).join('')}</select>` : '';
     const genderSelect = (p.genders||[]).length
       ? `<select id="gender-${p.id}" style="width:auto;padding:6px 10px;font-size:13px;border-radius:8px">
-           ${p.genders.map(g=>`<option>${g}</option>`).join('')}</select>` : '';
+           ${p.genders.map(g=>`<option ${g===activeGender?'selected':''}>${g}</option>`).join('')}</select>` : '';
     const imgs = productImages(p);
     const imgHtml = imgs.length ? `
       <div class="img-track" id="imgtrack-${p.id}">
