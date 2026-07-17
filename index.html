@@ -621,13 +621,11 @@ header{
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div><label>ราคา (บาท)</label><input type="number" id="prPrice" min="0" placeholder="290"></div>
-      <div><label>สี</label><input type="text" id="prColor" placeholder="เช่น กรมท่า, ขาว, ดำ"></div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div><label>จำนวนในสต๊อก</label><input type="number" id="prStock" min="0" placeholder="20"></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div><label>ไซซ์ (คั่นด้วย ,)</label><input type="text" id="prSizes" placeholder="S,M,L,XL"></div>
+      <div><label>สี (คั่นด้วย ,)</label><input type="text" id="prColors" placeholder="กรมท่า,ขาว,ดำ"></div>
     </div>
     <label>รูปภาพสินค้า</label>
     <div class="upload-box">
@@ -944,13 +942,16 @@ function renderCatalog(){
     const sizes = (p.sizes||[]).length
       ? `<select id="size-${p.id}" style="width:auto;padding:6px 10px;font-size:13px;border-radius:8px">
            ${p.sizes.map(s=>`<option>${s}</option>`).join('')}</select>` : '';
+    const colors = (p.colors||[]).length
+      ? `<select id="color-${p.id}" style="width:auto;padding:6px 10px;font-size:13px;border-radius:8px">
+           ${p.colors.map(c=>`<option>${c}</option>`).join('')}</select>` : '';
     return `<div class="card">
       <div class="card-img">${p.image ? `<img src="${p.image}" alt="${p.name}" loading="lazy">` : `<div class="noimg">👕</div>`}</div>
       <div class="card-body">
-        <div class="card-cat">${p.category||'อื่นๆ'}${p.gender && p.gender!=='ทุกเพศ' ? ' · ' + p.gender : ''}${p.color ? ' · ' + p.color : ''}</div>
+        <div class="card-cat">${p.category||'อื่นๆ'}${p.gender && p.gender!=='ทุกเพศ' ? ' · ' + p.gender : ''}</div>
         <div class="card-name">${p.name}</div>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          <span class="hangtag">${fmt(p.price)}</span>${sizes}
+          <span class="hangtag">${fmt(p.price)}</span>${sizes}${colors}
         </div>
         <div class="card-foot">
           ${out ? '<span class="soldout">สินค้าหมด</span>' : `<span class="hint">เหลือ ${p.stock} ชิ้น</span>`}
@@ -976,12 +977,14 @@ function addToCart(pid){
   const p = products.find(x=>x.id===pid); if (!p) return;
   const sizeEl = el('size-'+pid);
   const size = sizeEl ? sizeEl.value : '-';
-  const key = pid + '|' + size;
+  const colorEl = el('color-'+pid);
+  const color = colorEl ? colorEl.value : '-';
+  const key = pid + '|' + size + '|' + color;
   const row = cart.find(i=>i.key===key);
   const inCart = row ? row.qty : 0;
   if (inCart + 1 > (p.stock||0)){ toast('สินค้าในสต๊อกไม่เพียงพอ'); return; }
   if (row) row.qty++;
-  else cart.push({key, pid, size, qty:1});
+  else cart.push({key, pid, size, color, qty:1});
   saveCart(); toast('เพิ่ม "' + p.name + '" ลงตะกร้าแล้ว');
 }
 function changeQty(key, d){
@@ -1005,7 +1008,7 @@ function renderCart(){
       <div class="cart-thumb">${r.image?`<img src="${r.image}">`:'👕'}</div>
       <div style="flex:1">
         <div style="font-weight:600;font-size:14px">${r.name}</div>
-        <div class="hint">ไซซ์ ${r.size} · ${fmt(r.price)}</div>
+        <div class="hint">ไซซ์ ${r.size}${r.color && r.color!=='-' ? ' · สี ' + r.color : ''} · ${fmt(r.price)}</div>
         <div style="margin-top:6px" class="qty-ctl">
           <button onclick="changeQty('${r.key}',-1)">−</button>
           <span style="font-weight:700;min-width:18px;text-align:center">${r.qty}</span>
@@ -1062,7 +1065,7 @@ async function placeOrder(){
       tx.set(orderRef, {
         uid: currentUser.uid,
         orderNo,
-        items: rows.map(r => ({pid:r.pid, name:r.name, size:r.size, price:r.price, qty:r.qty})),
+        items: rows.map(r => ({pid:r.pid, name:r.name, size:r.size, color:r.color||'-', price:r.price, qty:r.qty})),
         total,
         shipping: {
           name: myProfile.name, phone: myProfile.phone,
@@ -1098,6 +1101,9 @@ function itemGenderLabel(pid){
   const g = p?.gender;
   return (g && g !== 'ทุกเพศ') ? ' · ' + g : '';
 }
+function itemColorLabel(i){
+  return (i.color && i.color !== '-') ? ' · ' + i.color : '';
+}
 
 function orderQtySummaryText(o){
   const groups = {};
@@ -1105,7 +1111,7 @@ function orderQtySummaryText(o){
   o.items.forEach(i => {
     const p = products.find(x => x.id === i.pid);
     const gender = (p?.gender && p.gender !== 'ทุกเพศ') ? p.gender : 'ไม่ระบุเพศ';
-    const color = p?.color || 'ไม่ระบุสี';
+    const color = (i.color && i.color !== '-') ? i.color : 'ไม่ระบุสี';
     const key = gender + '|' + color;
     groups[key] = (groups[key] || 0) + i.qty;
     total += i.qty;
@@ -1127,7 +1133,7 @@ function orderCard(o, adminView=false){
       <span class="order-id">#${o.orderNo || o.id.slice(0,8)} <span class="hint">· ${d}</span></span>
       <span class="status ${o.status}">${STATUS_TH[o.status]||o.status}</span>
     </div>
-    <div class="order-items">${o.items.map(i=>`${i.name} (${i.size}${itemGenderLabel(i.pid)}) × ${i.qty}`).join(' · ')}</div>
+    <div class="order-items">${o.items.map(i=>`${i.name} (${i.size}${itemGenderLabel(i.pid)}${itemColorLabel(i)}) × ${i.qty}`).join(' · ')}</div>
     <div class="hint" style="margin-top:4px">${orderQtySummaryText(o)}</div>
     <div style="display:flex;justify-content:space-between;margin-top:8px">
       <span class="hint">${adminView ? o.shipping.name + ' · ' + o.shipping.address + ' จ.' + o.shipping.province + ' ' + o.shipping.zipcode : 'จัดส่งถึง: ' + o.shipping.name}</span>
@@ -1173,7 +1179,7 @@ function renderAdminProducts(){
     <td><b>${p.name}</b><br><span class="hint">${(p.sizes||[]).join(', ')}</span></td>
     <td>${p.category||'-'}</td>
     <td>${p.gender||'ทุกเพศ'}</td>
-    <td>${p.color||'-'}</td>
+    <td>${(p.colors||[]).join(', ')||'-'}</td>
     <td>${fmt(p.price)}</td>
     <td>${p.stock||0}</td>
     <td>${p.active!==false ? '<span class="status done">เปิดขาย</span>' : '<span class="status cancelled">ปิด</span>'}</td>
@@ -1191,10 +1197,10 @@ function openProductForm(id){
   el('prName').value = p.name || '';
   el('prCat').value = p.category || 'เสื้อยืด';
   el('prGender').value = p.gender || 'ทุกเพศ';
-  el('prColor').value = p.color || '';
   el('prPrice').value = p.price ?? '';
   el('prStock').value = p.stock ?? '';
   el('prSizes').value = (p.sizes||[]).join(',');
+  el('prColors').value = (p.colors||[]).join(',');
   el('prImage').value = p.image || '';
   el('prActive').checked = p.active !== false;
   el('prFile').value = '';
@@ -1374,9 +1380,9 @@ async function saveProduct(){
     name, price,
     category: el('prCat').value,
     gender: el('prGender').value,
-    color: el('prColor').value.trim(),
     stock: Number(el('prStock').value)||0,
     sizes: el('prSizes').value.split(',').map(s=>s.trim()).filter(Boolean),
+    colors: el('prColors').value.split(',').map(s=>s.trim()).filter(Boolean),
     image: el('prImage').value.trim(),
     active: el('prActive').checked,
     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -1582,7 +1588,7 @@ function renderAdminOrders(){
     return `<tr>
       <td><b>#${o.orderNo||o.id.slice(0,8)}</b><br><span class="hint">${o.createdAt?.toDate?o.createdAt.toDate().toLocaleString('th-TH',{dateStyle:'short',timeStyle:'short'}):''}</span></td>
       <td>${o.shipping.name}<br><span class="hint">${o.shipping.address} จ.${o.shipping.province} ${o.shipping.zipcode}<br>โทร ${fromE164(o.shipping.phone)}</span></td>
-      <td>${o.items.map(i=>`${i.name} (${i.size}${itemGenderLabel(i.pid)}) × ${i.qty}`).join('<br>')}<br><span class="hint">${orderQtySummaryText(o)}</span></td>
+      <td>${o.items.map(i=>`${i.name} (${i.size}${itemGenderLabel(i.pid)}${itemColorLabel(i)}) × ${i.qty}`).join('<br>')}<br><span class="hint">${orderQtySummaryText(o)}</span></td>
       <td><b>${fmt(o.total)}</b></td>
       <td>
         <span class="paybadge ${payClass}">${PAYMENT_STATUS_TH[payStatus]}</span><br>
@@ -1618,6 +1624,7 @@ function exportOrdersToExcel(){
     'รหัสไปรษณีย์': o.shipping.zipcode,
     'ชื่อสินค้า': i.name,
     'เพศ': products.find(p => p.id === i.pid)?.gender || 'ทุกเพศ',
+    'สี': (i.color && i.color !== '-') ? i.color : 'ไม่ระบุ',
     'ไซซ์': i.size,
     'จำนวน': i.qty,
     'ราคาตัวละ (บาท)': i.price,
@@ -1631,7 +1638,7 @@ function exportOrdersToExcel(){
   const ws = XLSX.utils.json_to_sheet(rows);
   ws['!cols'] = [
     {wch:16},{wch:20},{wch:20},{wch:14},{wch:36},{wch:14},{wch:10},
-    {wch:26},{wch:10},{wch:8},{wch:8},{wch:14},{wch:16},{wch:18},{wch:14},{wch:16},{wch:40}
+    {wch:26},{wch:10},{wch:10},{wch:8},{wch:8},{wch:14},{wch:16},{wch:18},{wch:14},{wch:16},{wch:40}
   ];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'รายงานคำสั่งซื้อ');
