@@ -390,7 +390,7 @@ header{
       <button class="add-btn" style="margin-bottom:14px" onclick="openProductForm()">+ เพิ่มสินค้า</button>
       <div style="overflow-x:auto">
         <table class="admin-table" id="adminProductTable">
-          <thead><tr><th>สินค้า</th><th>หมวด</th><th>เพศ</th><th>ราคา</th><th>สต๊อก</th><th>สถานะ</th><th></th></tr></thead>
+          <thead><tr><th>สินค้า</th><th>หมวด</th><th>เพศ</th><th>สี</th><th>ราคา</th><th>สต๊อก</th><th>สถานะ</th><th></th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -621,6 +621,9 @@ header{
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div><label>ราคา (บาท)</label><input type="number" id="prPrice" min="0" placeholder="290"></div>
+      <div><label>สี</label><input type="text" id="prColor" placeholder="เช่น กรมท่า, ขาว, ดำ"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div><label>จำนวนในสต๊อก</label><input type="number" id="prStock" min="0" placeholder="20"></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
@@ -944,7 +947,7 @@ function renderCatalog(){
     return `<div class="card">
       <div class="card-img">${p.image ? `<img src="${p.image}" alt="${p.name}" loading="lazy">` : `<div class="noimg">👕</div>`}</div>
       <div class="card-body">
-        <div class="card-cat">${p.category||'อื่นๆ'}${p.gender && p.gender!=='ทุกเพศ' ? ' · ' + p.gender : ''}</div>
+        <div class="card-cat">${p.category||'อื่นๆ'}${p.gender && p.gender!=='ทุกเพศ' ? ' · ' + p.gender : ''}${p.color ? ' · ' + p.color : ''}</div>
         <div class="card-name">${p.name}</div>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
           <span class="hangtag">${fmt(p.price)}</span>${sizes}
@@ -1095,6 +1098,26 @@ function itemGenderLabel(pid){
   const g = p?.gender;
   return (g && g !== 'ทุกเพศ') ? ' · ' + g : '';
 }
+
+function orderQtySummaryText(o){
+  const groups = {};
+  let total = 0;
+  o.items.forEach(i => {
+    const p = products.find(x => x.id === i.pid);
+    const gender = (p?.gender && p.gender !== 'ทุกเพศ') ? p.gender : 'ไม่ระบุเพศ';
+    const color = p?.color || 'ไม่ระบุสี';
+    const key = gender + '|' + color;
+    groups[key] = (groups[key] || 0) + i.qty;
+    total += i.qty;
+  });
+  const parts = Object.entries(groups).map(([key, qty]) => {
+    const [gender, color] = key.split('|');
+    return `${gender} ${color} ${qty} ตัว`;
+  });
+  parts.push(`รวม ${total} ตัว`);
+  return parts.join(' · ');
+}
+
 function orderCard(o, adminView=false){
   const d = o.createdAt?.toDate ? o.createdAt.toDate().toLocaleString('th-TH',{dateStyle:'medium',timeStyle:'short'}) : '';
   const payStatus = o.paymentStatus || 'unpaid';
@@ -1105,6 +1128,7 @@ function orderCard(o, adminView=false){
       <span class="status ${o.status}">${STATUS_TH[o.status]||o.status}</span>
     </div>
     <div class="order-items">${o.items.map(i=>`${i.name} (${i.size}${itemGenderLabel(i.pid)}) × ${i.qty}`).join(' · ')}</div>
+    <div class="hint" style="margin-top:4px">${orderQtySummaryText(o)}</div>
     <div style="display:flex;justify-content:space-between;margin-top:8px">
       <span class="hint">${adminView ? o.shipping.name + ' · ' + o.shipping.address + ' จ.' + o.shipping.province + ' ' + o.shipping.zipcode : 'จัดส่งถึง: ' + o.shipping.name}</span>
       <b style="font-family:'Prompt'">${fmt(o.total)}</b>
@@ -1149,6 +1173,7 @@ function renderAdminProducts(){
     <td><b>${p.name}</b><br><span class="hint">${(p.sizes||[]).join(', ')}</span></td>
     <td>${p.category||'-'}</td>
     <td>${p.gender||'ทุกเพศ'}</td>
+    <td>${p.color||'-'}</td>
     <td>${fmt(p.price)}</td>
     <td>${p.stock||0}</td>
     <td>${p.active!==false ? '<span class="status done">เปิดขาย</span>' : '<span class="status cancelled">ปิด</span>'}</td>
@@ -1166,6 +1191,7 @@ function openProductForm(id){
   el('prName').value = p.name || '';
   el('prCat').value = p.category || 'เสื้อยืด';
   el('prGender').value = p.gender || 'ทุกเพศ';
+  el('prColor').value = p.color || '';
   el('prPrice').value = p.price ?? '';
   el('prStock').value = p.stock ?? '';
   el('prSizes').value = (p.sizes||[]).join(',');
@@ -1348,6 +1374,7 @@ async function saveProduct(){
     name, price,
     category: el('prCat').value,
     gender: el('prGender').value,
+    color: el('prColor').value.trim(),
     stock: Number(el('prStock').value)||0,
     sizes: el('prSizes').value.split(',').map(s=>s.trim()).filter(Boolean),
     image: el('prImage').value.trim(),
@@ -1555,7 +1582,7 @@ function renderAdminOrders(){
     return `<tr>
       <td><b>#${o.orderNo||o.id.slice(0,8)}</b><br><span class="hint">${o.createdAt?.toDate?o.createdAt.toDate().toLocaleString('th-TH',{dateStyle:'short',timeStyle:'short'}):''}</span></td>
       <td>${o.shipping.name}<br><span class="hint">${o.shipping.address} จ.${o.shipping.province} ${o.shipping.zipcode}<br>โทร ${fromE164(o.shipping.phone)}</span></td>
-      <td>${o.items.map(i=>`${i.name} (${i.size}${itemGenderLabel(i.pid)}) × ${i.qty}`).join('<br>')}</td>
+      <td>${o.items.map(i=>`${i.name} (${i.size}${itemGenderLabel(i.pid)}) × ${i.qty}`).join('<br>')}<br><span class="hint">${orderQtySummaryText(o)}</span></td>
       <td><b>${fmt(o.total)}</b></td>
       <td>
         <span class="paybadge ${payClass}">${PAYMENT_STATUS_TH[payStatus]}</span><br>
