@@ -171,6 +171,12 @@ header{
   padding:8px 14px;font-weight:600;font-size:13.5px;
 }
 .add-btn:hover{background:var(--indigo-dark)}
+.qty-add{display:flex;align-items:center;gap:6px}
+.qty-input{
+  width:48px;padding:8px 6px;text-align:center;font-size:13.5px;
+  border:1.5px solid var(--line);border-radius:10px;background:#fff;
+}
+.qty-input:disabled{background:var(--bg);color:var(--ink-soft)}
 .add-btn:disabled{background:#B9BCC9;cursor:not-allowed}
 .soldout{font-size:12.5px;font-weight:700;color:var(--danger)}
 
@@ -611,17 +617,11 @@ header{
           <option>กระโปรง</option><option>เดรส</option><option>แจ็กเก็ต</option><option>อื่นๆ</option>
         </select>
       </div>
-      <div><label>เพศ</label>
-        <select id="prGender">
-          <option value="ทุกเพศ">ทุกเพศ</option>
-          <option value="ผู้ชาย">ผู้ชาย</option>
-          <option value="ผู้หญิง">ผู้หญิง</option>
-        </select>
-      </div>
+      <div><label>ราคา (บาท)</label><input type="number" id="prPrice" min="0" placeholder="290"></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <div><label>ราคา (บาท)</label><input type="number" id="prPrice" min="0" placeholder="290"></div>
       <div><label>จำนวนในสต๊อก</label><input type="number" id="prStock" min="0" placeholder="20"></div>
+      <div><label>เพศ (คั่นด้วย ,)</label><input type="text" id="prGenders" placeholder="ผู้ชาย,ผู้หญิง"></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div><label>ไซซ์ (คั่นด้วย ,)</label><input type="text" id="prSizes" placeholder="S,M,L,XL"></div>
@@ -929,7 +929,7 @@ function renderCatalog(){
   el('genderChips').innerHTML = genders.map(g =>
     `<button class="chip ${g===activeGender?'active':''}" onclick="setGender('${g}')">${g}</button>`).join('');
 
-  const byGender = visible.filter(p => activeGender==='ทั้งหมด' || (p.gender||'ทุกเพศ')===activeGender || (p.gender||'ทุกเพศ')==='ทุกเพศ');
+  const byGender = visible.filter(p => activeGender==='ทั้งหมด' || !(p.genders||[]).length || (p.genders||[]).includes(activeGender));
 
   const cats = ['ทั้งหมด', ...new Set(byGender.map(p => p.category || 'อื่นๆ'))];
   el('catChips').innerHTML = cats.map(c =>
@@ -945,17 +945,23 @@ function renderCatalog(){
     const colors = (p.colors||[]).length
       ? `<select id="color-${p.id}" style="width:auto;padding:6px 10px;font-size:13px;border-radius:8px">
            ${p.colors.map(c=>`<option>${c}</option>`).join('')}</select>` : '';
+    const genderSelect = (p.genders||[]).length
+      ? `<select id="gender-${p.id}" style="width:auto;padding:6px 10px;font-size:13px;border-radius:8px">
+           ${p.genders.map(g=>`<option>${g}</option>`).join('')}</select>` : '';
     return `<div class="card">
       <div class="card-img">${p.image ? `<img src="${p.image}" alt="${p.name}" loading="lazy">` : `<div class="noimg">👕</div>`}</div>
       <div class="card-body">
-        <div class="card-cat">${p.category||'อื่นๆ'}${p.gender && p.gender!=='ทุกเพศ' ? ' · ' + p.gender : ''}</div>
+        <div class="card-cat">${p.category||'อื่นๆ'}</div>
         <div class="card-name">${p.name}</div>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          <span class="hangtag">${fmt(p.price)}</span>${sizes}${colors}
+          <span class="hangtag">${fmt(p.price)}</span>${sizes}${colors}${genderSelect}
         </div>
         <div class="card-foot">
           ${out ? '<span class="soldout">สินค้าหมด</span>' : `<span class="hint">เหลือ ${p.stock} ชิ้น</span>`}
-          <button class="add-btn" ${out?'disabled':''} onclick="addToCart('${p.id}')">ใส่ตะกร้า</button>
+          <div class="qty-add">
+            <input type="number" class="qty-input" id="qty-${p.id}" value="1" min="1" ${out?'disabled':''}>
+            <button class="add-btn" ${out?'disabled':''} onclick="addToCart('${p.id}')">ใส่ตะกร้า</button>
+          </div>
         </div>
       </div>
     </div>`;
@@ -979,13 +985,19 @@ function addToCart(pid){
   const size = sizeEl ? sizeEl.value : '-';
   const colorEl = el('color-'+pid);
   const color = colorEl ? colorEl.value : '-';
-  const key = pid + '|' + size + '|' + color;
+  const genderEl = el('gender-'+pid);
+  const gender = genderEl ? genderEl.value : '-';
+  const qtyEl = el('qty-'+pid);
+  let qty = qtyEl ? parseInt(qtyEl.value, 10) : 1;
+  if (!Number.isFinite(qty) || qty < 1) qty = 1;
+  const key = pid + '|' + size + '|' + color + '|' + gender;
   const row = cart.find(i=>i.key===key);
   const inCart = row ? row.qty : 0;
-  if (inCart + 1 > (p.stock||0)){ toast('สินค้าในสต๊อกไม่เพียงพอ'); return; }
-  if (row) row.qty++;
-  else cart.push({key, pid, size, color, qty:1});
+  if (inCart + qty > (p.stock||0)){ toast('สินค้าในสต๊อกไม่เพียงพอ'); return; }
+  if (row) row.qty += qty;
+  else cart.push({key, pid, size, color, gender, qty});
   saveCart(); toast('เพิ่ม "' + p.name + '" ลงตะกร้าแล้ว');
+  if (qtyEl) qtyEl.value = 1;
 }
 function changeQty(key, d){
   const row = cart.find(i=>i.key===key); if (!row) return;
@@ -1008,7 +1020,7 @@ function renderCart(){
       <div class="cart-thumb">${r.image?`<img src="${r.image}">`:'👕'}</div>
       <div style="flex:1">
         <div style="font-weight:600;font-size:14px">${r.name}</div>
-        <div class="hint">ไซซ์ ${r.size}${r.color && r.color!=='-' ? ' · สี ' + r.color : ''} · ${fmt(r.price)}</div>
+        <div class="hint">ไซซ์ ${r.size}${r.color && r.color!=='-' ? ' · สี ' + r.color : ''}${r.gender && r.gender!=='-' ? ' · ' + r.gender : ''} · ${fmt(r.price)}</div>
         <div style="margin-top:6px" class="qty-ctl">
           <button onclick="changeQty('${r.key}',-1)">−</button>
           <span style="font-weight:700;min-width:18px;text-align:center">${r.qty}</span>
@@ -1065,7 +1077,7 @@ async function placeOrder(){
       tx.set(orderRef, {
         uid: currentUser.uid,
         orderNo,
-        items: rows.map(r => ({pid:r.pid, name:r.name, size:r.size, color:r.color||'-', price:r.price, qty:r.qty})),
+        items: rows.map(r => ({pid:r.pid, name:r.name, size:r.size, color:r.color||'-', gender:r.gender||'-', price:r.price, qty:r.qty})),
         total,
         shipping: {
           name: myProfile.name, phone: myProfile.phone,
@@ -1096,21 +1108,19 @@ function loginPrompt(){
     เข้าสู่ระบบด้วยเบอร์มือถือเพื่อดูคำสั่งซื้อของคุณ<br><br>
     <button class="add-btn" onclick="openLogin()">เข้าสู่ระบบ</button></div>`;
 }
-function itemGenderLabel(pid){
-  const p = products.find(x => x.id === pid);
-  const g = p?.gender;
-  return (g && g !== 'ทุกเพศ') ? ' · ' + g : '';
+function itemGenderLabel(i){
+  return (i.gender && i.gender !== '-') ? ' · ' + i.gender : '';
 }
 function itemColorLabel(i){
   return (i.color && i.color !== '-') ? ' · ' + i.color : '';
 }
 
+/* สรุปจำนวนสินค้าในคำสั่งซื้อ แยกตามเพศ+สี เช่น "ผู้ชาย กรมท่า 2 ตัว · ผู้หญิง ขาว 1 ตัว · รวม 3 ตัว" */
 function orderQtySummaryText(o){
   const groups = {};
   let total = 0;
   o.items.forEach(i => {
-    const p = products.find(x => x.id === i.pid);
-    const gender = (p?.gender && p.gender !== 'ทุกเพศ') ? p.gender : 'ไม่ระบุเพศ';
+    const gender = (i.gender && i.gender !== '-') ? i.gender : 'ไม่ระบุเพศ';
     const color = (i.color && i.color !== '-') ? i.color : 'ไม่ระบุสี';
     const key = gender + '|' + color;
     groups[key] = (groups[key] || 0) + i.qty;
@@ -1133,7 +1143,7 @@ function orderCard(o, adminView=false){
       <span class="order-id">#${o.orderNo || o.id.slice(0,8)} <span class="hint">· ${d}</span></span>
       <span class="status ${o.status}">${STATUS_TH[o.status]||o.status}</span>
     </div>
-    <div class="order-items">${o.items.map(i=>`${i.name} (${i.size}${itemGenderLabel(i.pid)}${itemColorLabel(i)}) × ${i.qty}`).join(' · ')}</div>
+    <div class="order-items">${o.items.map(i=>`${i.name} (${i.size}${itemGenderLabel(i)}${itemColorLabel(i)}) × ${i.qty}`).join(' · ')}</div>
     <div class="hint" style="margin-top:4px">${orderQtySummaryText(o)}</div>
     <div style="display:flex;justify-content:space-between;margin-top:8px">
       <span class="hint">${adminView ? o.shipping.name + ' · ' + o.shipping.address + ' จ.' + o.shipping.province + ' ' + o.shipping.zipcode : 'จัดส่งถึง: ' + o.shipping.name}</span>
@@ -1178,7 +1188,7 @@ function renderAdminProducts(){
   tb.innerHTML = products.map(p => `<tr>
     <td><b>${p.name}</b><br><span class="hint">${(p.sizes||[]).join(', ')}</span></td>
     <td>${p.category||'-'}</td>
-    <td>${p.gender||'ทุกเพศ'}</td>
+    <td>${(p.genders||[]).join(', ')||'ไม่ระบุ'}</td>
     <td>${(p.colors||[]).join(', ')||'-'}</td>
     <td>${fmt(p.price)}</td>
     <td>${p.stock||0}</td>
@@ -1196,9 +1206,9 @@ function openProductForm(id){
   el('prId').value = id || '';
   el('prName').value = p.name || '';
   el('prCat').value = p.category || 'เสื้อยืด';
-  el('prGender').value = p.gender || 'ทุกเพศ';
   el('prPrice').value = p.price ?? '';
   el('prStock').value = p.stock ?? '';
+  el('prGenders').value = (p.genders||[]).join(',');
   el('prSizes').value = (p.sizes||[]).join(',');
   el('prColors').value = (p.colors||[]).join(',');
   el('prImage').value = p.image || '';
@@ -1379,8 +1389,8 @@ async function saveProduct(){
   const data = {
     name, price,
     category: el('prCat').value,
-    gender: el('prGender').value,
     stock: Number(el('prStock').value)||0,
+    genders: el('prGenders').value.split(',').map(s=>s.trim()).filter(Boolean),
     sizes: el('prSizes').value.split(',').map(s=>s.trim()).filter(Boolean),
     colors: el('prColors').value.split(',').map(s=>s.trim()).filter(Boolean),
     image: el('prImage').value.trim(),
@@ -1588,7 +1598,7 @@ function renderAdminOrders(){
     return `<tr>
       <td><b>#${o.orderNo||o.id.slice(0,8)}</b><br><span class="hint">${o.createdAt?.toDate?o.createdAt.toDate().toLocaleString('th-TH',{dateStyle:'short',timeStyle:'short'}):''}</span></td>
       <td>${o.shipping.name}<br><span class="hint">${o.shipping.address} จ.${o.shipping.province} ${o.shipping.zipcode}<br>โทร ${fromE164(o.shipping.phone)}</span></td>
-      <td>${o.items.map(i=>`${i.name} (${i.size}${itemGenderLabel(i.pid)}${itemColorLabel(i)}) × ${i.qty}`).join('<br>')}<br><span class="hint">${orderQtySummaryText(o)}</span></td>
+      <td>${o.items.map(i=>`${i.name} (${i.size}${itemGenderLabel(i)}${itemColorLabel(i)}) × ${i.qty}`).join('<br>')}<br><span class="hint">${orderQtySummaryText(o)}</span></td>
       <td><b>${fmt(o.total)}</b></td>
       <td>
         <span class="paybadge ${payClass}">${PAYMENT_STATUS_TH[payStatus]}</span><br>
@@ -1623,7 +1633,7 @@ function exportOrdersToExcel(){
     'จังหวัด': o.shipping.province,
     'รหัสไปรษณีย์': o.shipping.zipcode,
     'ชื่อสินค้า': i.name,
-    'เพศ': products.find(p => p.id === i.pid)?.gender || 'ทุกเพศ',
+    'เพศ': (i.gender && i.gender !== '-') ? i.gender : 'ไม่ระบุ',
     'สี': (i.color && i.color !== '-') ? i.color : 'ไม่ระบุ',
     'ไซซ์': i.size,
     'จำนวน': i.qty,
