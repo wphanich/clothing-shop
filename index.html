@@ -536,23 +536,46 @@ header{
 <div class="modal" id="loginModal">
   <div class="overlay show" onclick="closeLoginModal()" style="position:absolute"></div>
   <div class="modal-card">
-    <h3>เข้าสู่ระบบด้วยเบอร์มือถือ</h3>
-    <div class="modal-sub">ระบบจะส่งรหัส OTP 6 หลักไปยังเบอร์ของคุณทาง SMS</div>
-    <div id="phoneStep">
-      <label>เบอร์โทรศัพท์มือถือ</label>
-      <input type="tel" id="phoneInput" placeholder="08x-xxx-xxxx" maxlength="12" inputmode="tel">
-      <div id="recaptcha-container" style="margin-top:12px"></div>
-      <button class="big-btn indigo" id="sendOtpBtn" style="margin-top:16px" onclick="sendOTP()">ส่งรหัส OTP</button>
+    <h3>เข้าสู่ระบบ</h3>
+    <div class="modal-sub">เลือกวิธีเข้าสู่ระบบที่สะดวก</div>
+
+    <div class="tab-row" style="margin-top:12px">
+      <button class="chip active" id="authTabPhone" onclick="switchAuthTab('phone')">เบอร์มือถือ</button>
+      <button class="chip" id="authTabEmail" onclick="switchAuthTab('email')">อีเมล</button>
     </div>
-    <div id="otpStep" style="display:none">
-      <label>รหัส OTP ที่ได้รับทาง SMS</label>
-      <div class="otp-box">
-        <input type="text" id="otpInput" placeholder="กรอกรหัส 6 หลัก" maxlength="6" inputmode="numeric" style="letter-spacing:6px;text-align:center;font-family:'Prompt';font-weight:600;font-size:18px">
+
+    <div id="authPhonePane">
+      <div id="phoneStep">
+        <label>เบอร์โทรศัพท์มือถือ</label>
+        <input type="tel" id="phoneInput" placeholder="08x-xxx-xxxx" maxlength="12" inputmode="tel">
+        <div id="recaptcha-container" style="margin-top:12px"></div>
+        <button class="big-btn indigo" id="sendOtpBtn" style="margin-top:16px" onclick="sendOTP()">ส่งรหัส OTP</button>
       </div>
-      <button class="big-btn indigo" style="margin-top:16px" onclick="verifyOTP()">ยืนยันรหัส</button>
-      <button class="nav-btn" style="width:100%;margin-top:8px" onclick="resetLogin()">← เปลี่ยนเบอร์โทรศัพท์</button>
+      <div id="otpStep" style="display:none">
+        <label>รหัส OTP ที่ได้รับทาง SMS</label>
+        <div class="otp-box">
+          <input type="text" id="otpInput" placeholder="กรอกรหัส 6 หลัก" maxlength="6" inputmode="numeric" style="letter-spacing:6px;text-align:center;font-family:'Prompt';font-weight:600;font-size:18px">
+        </div>
+        <button class="big-btn indigo" style="margin-top:16px" onclick="verifyOTP()">ยืนยันรหัส</button>
+        <button class="nav-btn" style="width:100%;margin-top:8px" onclick="resetLogin()">← เปลี่ยนเบอร์โทรศัพท์</button>
+      </div>
     </div>
-    <div class="pill-note">หมายเลขโทรศัพท์ของคุณใช้เพื่อยืนยันตัวตนและติดต่อเรื่องการจัดส่งเท่านั้น</div>
+
+    <div id="authEmailPane" style="display:none">
+      <label>อีเมล</label>
+      <input type="email" id="emailInput" placeholder="you@example.com" autocomplete="email">
+      <label>รหัสผ่าน</label>
+      <input type="password" id="emailPasswordInput" placeholder="อย่างน้อย 6 ตัวอักษร" autocomplete="current-password">
+      <div id="emailConfirmWrap" style="display:none">
+        <label>ยืนยันรหัสผ่าน</label>
+        <input type="password" id="emailPasswordConfirm" placeholder="พิมพ์รหัสผ่านอีกครั้ง" autocomplete="new-password">
+      </div>
+      <button class="big-btn indigo" style="margin-top:16px" id="emailAuthBtn" onclick="submitEmailAuth()">เข้าสู่ระบบ</button>
+      <button class="nav-btn" style="width:100%;margin-top:8px" onclick="toggleEmailAuthMode()" id="emailModeToggle">ยังไม่มีบัญชี? สมัครสมาชิกใหม่</button>
+      <button class="nav-btn" style="width:100%;color:var(--indigo-dark)" onclick="sendPasswordReset()" id="forgotPasswordBtn">ลืมรหัสผ่าน?</button>
+    </div>
+
+    <div class="pill-note">ข้อมูลเบอร์โทรศัพท์และที่อยู่ของคุณใช้เพื่อติดต่อและจัดส่งสินค้าเท่านั้น</div>
   </div>
 </div>
 
@@ -571,7 +594,7 @@ header{
       <div><label>รหัสไปรษณีย์</label><input type="text" id="pfZip" maxlength="5" inputmode="numeric" placeholder="10xxx"></div>
     </div>
     <label>เบอร์โทรติดต่อ</label>
-    <input type="tel" id="pfPhone" readonly style="background:var(--bg)">
+    <input type="tel" id="pfPhone" placeholder="08x-xxx-xxxx" maxlength="12" inputmode="tel">
     <button class="big-btn indigo" style="margin-top:20px" id="pfSaveBtn" onclick="saveProfile()">บันทึกข้อมูล</button>
     <button class="nav-btn" style="width:100%;margin-top:8px;color:var(--danger)" id="logoutBtn" onclick="doLogout()">ออกจากระบบ</button>
   </div>
@@ -789,13 +812,87 @@ function toE164(th){
 }
 function fromE164(p){ return p ? p.replace('+66','0') : ''; }
 
-function openLogin(){ el('loginModal').classList.add('show'); resetLogin(); }
+function openLogin(){
+  el('loginModal').classList.add('show');
+  resetLogin();
+  switchAuthTab('phone');
+  emailAuthMode = 'login';
+  el('emailInput').value = '';
+  el('emailPasswordInput').value = '';
+  el('emailPasswordConfirm').value = '';
+  updateEmailAuthUI();
+}
 function resetLogin(){
   el('phoneStep').style.display = ''; el('otpStep').style.display = 'none';
   el('otpInput').value = '';
 }
 function closeLoginModal(){ closeModal('loginModal'); resetRecaptchaWidget(); }
 function closeModal(id){ el(id).classList.remove('show'); }
+
+function switchAuthTab(tab){
+  el('authTabPhone').classList.toggle('active', tab==='phone');
+  el('authTabEmail').classList.toggle('active', tab==='email');
+  el('authPhonePane').style.display = tab==='phone' ? '' : 'none';
+  el('authEmailPane').style.display = tab==='email' ? '' : 'none';
+}
+
+let emailAuthMode = 'login'; // 'login' | 'signup'
+
+function toggleEmailAuthMode(){
+  emailAuthMode = emailAuthMode === 'login' ? 'signup' : 'login';
+  updateEmailAuthUI();
+}
+function updateEmailAuthUI(){
+  const isSignup = emailAuthMode === 'signup';
+  el('emailAuthBtn').textContent = isSignup ? 'สมัครสมาชิก' : 'เข้าสู่ระบบ';
+  el('emailModeToggle').textContent = isSignup ? 'มีบัญชีแล้ว? เข้าสู่ระบบ' : 'ยังไม่มีบัญชี? สมัครสมาชิกใหม่';
+  el('emailConfirmWrap').style.display = isSignup ? '' : 'none';
+  el('forgotPasswordBtn').style.display = isSignup ? 'none' : '';
+}
+
+const EMAIL_AUTH_ERROR_TH = {
+  'auth/email-already-in-use': 'อีเมลนี้ถูกใช้สมัครสมาชิกแล้ว ลองเข้าสู่ระบบแทน',
+  'auth/invalid-email': 'รูปแบบอีเมลไม่ถูกต้อง',
+  'auth/weak-password': 'รหัสผ่านสั้นเกินไป (อย่างน้อย 6 ตัวอักษร)',
+  'auth/user-not-found': 'ไม่พบบัญชีนี้ ลองสมัครสมาชิกใหม่',
+  'auth/wrong-password': 'รหัสผ่านไม่ถูกต้อง',
+  'auth/invalid-credential': 'อีเมลหรือรหัสผ่านไม่ถูกต้อง',
+  'auth/too-many-requests': 'ลองผิดหลายครั้งเกินไป กรุณารอสักครู่แล้วลองใหม่',
+  'auth/operation-not-allowed': 'ยังไม่ได้เปิดใช้งานการเข้าสู่ระบบด้วยอีเมลในระบบ'
+};
+
+async function submitEmailAuth(){
+  const email = el('emailInput').value.trim();
+  const password = el('emailPasswordInput').value;
+  if (!email || !password){ toast('กรอกอีเมลและรหัสผ่านให้ครบ'); return; }
+  const btn = el('emailAuthBtn'); btn.disabled = true;
+  try{
+    if (emailAuthMode === 'signup'){
+      const confirmPw = el('emailPasswordConfirm').value;
+      if (password.length < 6){ toast('รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร'); return; }
+      if (password !== confirmPw){ toast('รหัสผ่านยืนยันไม่ตรงกัน'); return; }
+      await auth.createUserWithEmailAndPassword(email, password);
+    }else{
+      await auth.signInWithEmailAndPassword(email, password);
+    }
+    closeModal('loginModal');
+  }catch(err){
+    toast(EMAIL_AUTH_ERROR_TH[err.code] || ('เข้าสู่ระบบไม่สำเร็จ: ' + err.message));
+  }finally{
+    btn.disabled = false;
+  }
+}
+
+async function sendPasswordReset(){
+  const email = el('emailInput').value.trim();
+  if (!email){ toast('กรอกอีเมลก่อนกดลืมรหัสผ่าน'); return; }
+  try{
+    await auth.sendPasswordResetEmail(email);
+    toast('ส่งลิงก์รีเซ็ตรหัสผ่านไปที่อีเมลแล้ว');
+  }catch(err){
+    toast(EMAIL_AUTH_ERROR_TH[err.code] || ('ส่งไม่สำเร็จ: ' + err.message));
+  }
+}
 
 async function sendOTP(){
   const phone = toE164(el('phoneInput').value);
@@ -857,7 +954,7 @@ auth.onAuthStateChanged(async user => {
     el('adminNav').style.display = isAdmin ? '' : 'none';
     const snap = await db.collection('customers').doc(user.uid).get();
     myProfile = snap.exists ? snap.data() : null;
-    el('userName').textContent = myProfile?.name || fromE164(user.phoneNumber);
+    el('userName').textContent = myProfile?.name || (user.phoneNumber ? fromE164(user.phoneNumber) : user.email) || 'ลูกค้า';
     el('userDot').textContent = (myProfile?.name || 'ค')[0];
     watchMyOrders();
     if (isAdmin){ watchAdminOrders(); watchCustomers(); }
@@ -889,7 +986,7 @@ function openProfile(isNew=false){
   el('pfAddress').value  = myProfile?.address || '';
   el('pfProvince').value = myProfile?.province || '';
   el('pfZip').value      = myProfile?.zipcode || '';
-  el('pfPhone').value    = fromE164(currentUser?.phoneNumber);
+  el('pfPhone').value    = myProfile?.phone ? fromE164(myProfile.phone) : (currentUser?.phoneNumber ? fromE164(currentUser.phoneNumber) : '');
   el('logoutBtn').style.display = isNew ? 'none' : '';
   el('profileModal').classList.add('show');
 }
@@ -899,14 +996,18 @@ async function saveProfile(){
   const address = el('pfAddress').value.trim();
   const province = el('pfProvince').value.trim();
   const zipcode = el('pfZip').value.trim();
+  const phoneE164 = toE164(el('pfPhone').value.trim());
   if (!name || !address || !province || !/^\d{5}$/.test(zipcode)){
     toast('กรอกชื่อ ที่อยู่ จังหวัด และรหัสไปรษณีย์ 5 หลักให้ครบ'); return;
+  }
+  if (!phoneE164){
+    toast('กรอกเบอร์โทรศัพท์ให้ถูกต้อง (10 หลัก ขึ้นต้นด้วย 0)'); return;
   }
   el('pfSaveBtn').disabled = true;
   try{
     const data = {
       name, address, province, zipcode,
-      phone: currentUser.phoneNumber,
+      phone: phoneE164,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     };
     await db.collection('customers').doc(currentUser.uid).set(data, {merge:true});
