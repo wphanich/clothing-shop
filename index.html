@@ -250,6 +250,20 @@ header{
 .view.active{display:block}
 .section-title{font-size:20px;font-weight:700;margin:8px 0 16px}
 .order-card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;margin-bottom:14px}
+.announce-card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin-bottom:16px}
+.announce-card img{width:100%;max-height:340px;object-fit:cover;display:block}
+.announce-body{padding:18px 20px}
+.announce-title{font-family:'Prompt';font-weight:700;font-size:17px;margin-bottom:4px}
+.announce-date{font-size:12.5px;color:var(--ink-soft);margin-bottom:10px}
+.announce-content{font-size:14px;line-height:1.7;white-space:pre-wrap}
+.admin-announce-row{
+  display:flex;gap:14px;background:#fff;border:1px solid var(--line);border-radius:12px;
+  padding:14px;margin-bottom:12px;align-items:flex-start;
+}
+.admin-announce-row .thumb{width:70px;height:70px;border-radius:8px;overflow:hidden;background:#ECECE7;flex-shrink:0}
+.admin-announce-row .thumb img{width:100%;height:100%;object-fit:cover}
+.admin-announce-row .info{flex:1;min-width:0}
+.admin-announce-row .actions{display:flex;gap:8px;flex-shrink:0}
 .order-top{display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:8px}
 .order-id{font-family:'Prompt';font-weight:600;font-size:14px}
 .status{
@@ -362,6 +376,7 @@ header{
     <div class="logo">WEAR<span>HOUSE</span></div>
     <div class="nav-spacer"></div>
     <button class="nav-btn active" data-view="shop" onclick="showView('shop')">สินค้า</button>
+    <button class="nav-btn" data-view="announcements" onclick="showView('announcements')">ประกาศ</button>
     <button class="nav-btn" data-view="orders" onclick="showView('orders')">คำสั่งซื้อ</button>
     <button class="nav-btn" data-view="admin" id="adminNav" style="display:none" onclick="showView('admin')">จัดการร้าน</button>
     <button class="user-chip" id="userChip" onclick="onUserChip()">
@@ -401,6 +416,14 @@ header{
   </div>
 </div>
 
+ <!-- ================= ANNOUNCEMENTS VIEW ================= -->
+<div class="view" id="view-announcements">
+  <div class="wrap">
+    <div class="section-title">ประกาศจากร้าน</div>
+    <div id="announcementList"></div>
+  </div>
+</div>
+
 <!-- ================= ORDERS VIEW ================= -->
 <div class="view" id="view-orders">
   <div class="wrap">
@@ -418,6 +441,7 @@ header{
       <button class="chip" id="tabOrders" onclick="adminTab('orders')">คำสั่งซื้อทั้งหมด</button>
       <button class="chip" id="tabCustomers" onclick="adminTab('customers')">ลูกค้า</button>
       <button class="chip" id="tabSizeChart" onclick="adminTab('sizechart')">ตารางไซส์</button>
+      <button class="chip" id="tabAnnouncements" onclick="adminTab('announcements')">ประกาศ</button>
     </div>
     <div id="adminProducts">
       <button class="add-btn" style="margin-bottom:14px" onclick="openProductForm()">+ เพิ่มสินค้า</button>
@@ -520,6 +544,10 @@ header{
         <button class="big-btn indigo" style="flex:1" onclick="saveSizeChart()">บันทึกตารางไซส์</button>
         <button class="mini-btn danger" onclick="removeSizeChart()">ลบรูปออก</button>
       </div>
+    </div>
+    <div id="adminAnnouncements" style="display:none">
+      <button class="add-btn" style="margin-bottom:14px" onclick="openAnnouncementForm()">+ เพิ่มประกาศ</button>
+      <div id="adminAnnouncementList"></div>
     </div>
   </div>
 </div>
@@ -650,6 +678,37 @@ header{
     </div>
 
     <button class="nav-btn" style="width:100%;margin-top:14px" onclick="closePaymentModal()">แจ้งชำระเงินภายหลัง</button>
+  </div>
+</div>
+
+<!-- ================= ADMIN ANNOUNCEMENT FORM ================= -->
+<div class="modal" id="announcementModal">
+  <div class="overlay show" onclick="closeModal('announcementModal')" style="position:absolute"></div>
+  <div class="modal-card">
+    <h3 id="announcementFormTitle">เพิ่มประกาศ</h3>
+    <input type="hidden" id="anId">
+    <label>หัวข้อประกาศ</label>
+    <input type="text" id="anTitle" placeholder="เช่น โปรโมชั่นสิ้นเดือนนี้">
+    <label>รายละเอียด</label>
+    <textarea id="anContent" rows="4" placeholder="รายละเอียดของประกาศ"></textarea>
+    <label>รูปภาพประกอบ</label>
+    <div class="upload-box">
+      <div class="upload-preview" id="anPreview">📢</div>
+      <div class="upload-info">
+        <div class="upload-filename" id="anFilename">ยังไม่ได้เลือกรูป</div>
+        <div class="upload-status" id="anUploadStatus">รองรับ JPG/PNG ไม่เกิน 5MB</div>
+        <div class="progress-track" id="anProgressTrack" style="display:none"><div class="progress-fill" id="anProgressFill"></div></div>
+      </div>
+      <button type="button" class="upload-pick-btn" onclick="document.getElementById('anFile').click()">เลือกรูป</button>
+      <input type="file" id="anFile" accept="image/png,image/jpeg,image/webp" style="display:none" onchange="onPickAnnouncementImage(event)">
+    </div>
+    <div class="or-divider">หรือ</div>
+    <label>ลิงก์รูปภาพ (URL)</label>
+    <input type="url" id="anImageUrl" placeholder="https://...jpg" oninput="onManualAnnouncementUrl()">
+    <label style="display:flex;align-items:center;gap:8px;margin-top:14px;font-weight:600">
+      <input type="checkbox" id="anActive" checked style="width:auto"> เผยแพร่ประกาศนี้
+    </label>
+    <button class="big-btn indigo" style="margin-top:18px" onclick="saveAnnouncement()">บันทึกประกาศ</button>
   </div>
 </div>
 
@@ -1054,6 +1113,32 @@ function renderSizeChartOnHomepage(){
   }
 }
 
+let allAnnouncements = [];
+db.collection('announcements').onSnapshot(snap => {
+  allAnnouncements = snap.docs.map(d=>({id:d.id,...d.data()}))
+    .sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
+  renderAnnouncementsForCustomer();
+  renderAdminAnnouncements();
+}, err => console.error(err));
+
+function announcementDate(a){
+  return a.createdAt?.toDate ? a.createdAt.toDate().toLocaleString('th-TH',{dateStyle:'medium',timeStyle:'short'}) : '';
+}
+
+function renderAnnouncementsForCustomer(){
+  const list = allAnnouncements.filter(a => a.active !== false);
+  el('announcementList').innerHTML = list.length ? list.map(a => `
+    <div class="announce-card">
+      ${a.image ? `<img src="${a.image}" alt="${a.title}">` : ''}
+      <div class="announce-body">
+        <div class="announce-title">${a.title}</div>
+        <div class="announce-date">${announcementDate(a)}</div>
+        <div class="announce-content">${a.content||''}</div>
+      </div>
+    </div>`).join('')
+    : `<div class="empty"><div class="big">📢</div>ยังไม่มีประกาศจากร้าน</div>`;
+}
+
 function renderCatalog(){
   const visible = products.filter(p => p.active !== false);
 
@@ -1348,10 +1433,12 @@ function adminTab(t){
   el('tabOrders').classList.toggle('active', t==='orders');
   el('tabCustomers').classList.toggle('active', t==='customers');
   el('tabSizeChart').classList.toggle('active', t==='sizechart');
+  el('tabAnnouncements').classList.toggle('active', t==='announcements');
   el('adminProducts').style.display = t==='products' ? '' : 'none';
   el('adminOrders').style.display = t==='orders' ? '' : 'none';
   el('adminCustomers').style.display = t==='customers' ? '' : 'none';
   el('adminSizeChart').style.display = t==='sizechart' ? '' : 'none';
+  el('adminAnnouncements').style.display = t==='announcements' ? '' : 'none';
   if (t==='customers') renderCustomers();
   if (t==='sizechart') loadSizeChartIntoForm();
 }
@@ -1759,6 +1846,118 @@ async function removeSizeChart(){
     }, {merge:true});
     loadSizeChartIntoForm();
     toast('ลบตารางไซส์แล้ว');
+  }catch(err){ toast('ลบไม่สำเร็จ: ' + err.message); }
+}
+
+let isUploadingAnnouncementImage = false;
+let currentAnnouncementImage = '';
+
+function renderAdminAnnouncements(){
+  if (!el('adminAnnouncementList')) return;
+  el('adminAnnouncementList').innerHTML = allAnnouncements.length ? allAnnouncements.map(a => `
+    <div class="admin-announce-row">
+      <div class="thumb">${a.image ? `<img src="${a.image}">` : '📢'}</div>
+      <div class="info">
+        <b>${a.title}</b> ${a.active===false ? '<span class="status cancelled">ไม่เผยแพร่</span>' : '<span class="status done">เผยแพร่อยู่</span>'}
+        <div class="hint">${announcementDate(a)}</div>
+        <div class="hint" style="margin-top:4px">${(a.content||'').slice(0,80)}${(a.content||'').length>80?'...':''}</div>
+      </div>
+      <div class="actions">
+        <button class="mini-btn" onclick="openAnnouncementForm('${a.id}')">แก้ไข</button>
+        <button class="mini-btn danger" onclick="deleteAnnouncement('${a.id}')">ลบ</button>
+      </div>
+    </div>`).join('')
+    : `<div class="empty"><div class="big">📢</div>ยังไม่มีประกาศ กด "+ เพิ่มประกาศ" เพื่อสร้างรายการแรก</div>`;
+}
+
+function openAnnouncementForm(id){
+  const a = allAnnouncements.find(x=>x.id===id) || {};
+  el('announcementFormTitle').textContent = id ? 'แก้ไขประกาศ' : 'เพิ่มประกาศ';
+  el('anId').value = id || '';
+  el('anTitle').value = a.title || '';
+  el('anContent').value = a.content || '';
+  el('anImageUrl').value = a.image || '';
+  el('anActive').checked = a.active !== false;
+  el('anFile').value = '';
+  isUploadingAnnouncementImage = false;
+  currentAnnouncementImage = a.image || '';
+  el('anProgressTrack').style.display = 'none';
+  el('anFilename').textContent = 'ยังไม่ได้เลือกรูป';
+  el('anUploadStatus').className = 'upload-status';
+  el('anUploadStatus').textContent = 'รองรับ JPG/PNG ไม่เกิน 5MB';
+  updateAnnouncementPreview(currentAnnouncementImage);
+  el('announcementModal').classList.add('show');
+}
+
+function updateAnnouncementPreview(url){
+  el('anPreview').innerHTML = url ? `<img src="${url}" onerror="this.parentNode.innerHTML='📢'">` : '📢';
+}
+function onManualAnnouncementUrl(){
+  currentAnnouncementImage = el('anImageUrl').value.trim();
+  updateAnnouncementPreview(currentAnnouncementImage);
+}
+
+async function onPickAnnouncementImage(event){
+  const file = event.target.files[0];
+  if (!file) return;
+  if (!/^image\/(png|jpeg|webp)$/.test(file.type)){
+    toast('รองรับเฉพาะไฟล์ JPG, PNG หรือ WEBP'); event.target.value=''; return;
+  }
+  if (file.size > 5*1024*1024){
+    toast('ขนาดไฟล์ต้องไม่เกิน 5MB'); event.target.value=''; return;
+  }
+  el('anFilename').textContent = file.name;
+  el('anProgressTrack').style.display = '';
+  el('anProgressFill').style.width = '0%';
+  const statusEl = el('anUploadStatus');
+  statusEl.className = 'upload-status';
+  statusEl.textContent = 'กำลังอัปโหลด...';
+  isUploadingAnnouncementImage = true;
+
+  try{
+    const url = await uploadImageToImgbb(file, pct => {
+      el('anProgressFill').style.width = pct + '%';
+      statusEl.textContent = `กำลังอัปโหลด... ${pct}%`;
+    });
+    currentAnnouncementImage = url;
+    el('anImageUrl').value = url;
+    updateAnnouncementPreview(url);
+    statusEl.className = 'upload-status ok';
+    statusEl.textContent = 'อัปโหลดสำเร็จ';
+  }catch(err){
+    statusEl.className = 'upload-status err';
+    statusEl.textContent = 'อัปโหลดไม่สำเร็จ: ' + err.message;
+    toast('อัปโหลดรูปไม่สำเร็จ');
+  }finally{
+    isUploadingAnnouncementImage = false;
+  }
+}
+
+async function saveAnnouncement(){
+  const title = el('anTitle').value.trim();
+  const content = el('anContent').value.trim();
+  if (!title){ toast('กรอกหัวข้อประกาศก่อน'); return; }
+  if (isUploadingAnnouncementImage){ toast('กรุณารอให้อัปโหลดรูปเสร็จก่อน'); return; }
+  const data = {
+    title, content,
+    image: currentAnnouncementImage,
+    active: el('anActive').checked,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  };
+  const id = el('anId').value;
+  try{
+    if (id) await db.collection('announcements').doc(id).update(data);
+    else await db.collection('announcements').add({...data, createdAt: firebase.firestore.FieldValue.serverTimestamp()});
+    closeModal('announcementModal');
+    toast('บันทึกประกาศแล้ว');
+  }catch(err){ toast('บันทึกไม่สำเร็จ: ' + err.message); }
+}
+
+async function deleteAnnouncement(id){
+  if (!confirm('ลบประกาศนี้?')) return;
+  try{
+    await db.collection('announcements').doc(id).delete();
+    toast('ลบประกาศแล้ว');
   }catch(err){ toast('ลบไม่สำเร็จ: ' + err.message); }
 }
 
