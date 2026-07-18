@@ -1152,7 +1152,12 @@ function renderCatalog(){
   el('catChips').innerHTML = cats.map(c =>
     `<button class="chip ${c===activeCat?'active':''}" onclick="setCat('${c}')">${c}</button>`).join('');
 
-  const list = byGender.filter(p => activeCat==='ทั้งหมด' || (p.category||'อื่นๆ')===activeCat);
+  const list = byGender.filter(p => activeCat==='ทั้งหมด' || (p.category||'อื่นๆ')===activeCat)
+    .sort((a,b) => {
+      const catCompare = (a.category||'อื่นๆ').localeCompare(b.category||'อื่นๆ', 'th');
+      if (catCompare !== 0) return catCompare;
+      return (a.name||'').localeCompare(b.name||'', 'th');
+    });
   el('shopEmpty').style.display = visible.length ? 'none' : '';
   el('productGrid').innerHTML = list.map(p => {
     const out = (p.stock||0) <= 0;
@@ -1444,7 +1449,12 @@ function adminTab(t){
 }
 function renderAdminProducts(){
   const tb = el('adminProductTable').querySelector('tbody');
-  tb.innerHTML = products.map(p => `<tr>
+  const sorted = products.slice().sort((a,b) => {
+    const catCompare = (a.category||'อื่นๆ').localeCompare(b.category||'อื่นๆ', 'th');
+    if (catCompare !== 0) return catCompare;
+    return (a.name||'').localeCompare(b.name||'', 'th');
+  });
+  tb.innerHTML = sorted.map(p => `<tr>
     <td><b>${p.name}</b><br><span class="hint">${(p.sizes||[]).join(', ')}</span></td>
     <td>${p.category||'-'}</td>
     <td>${(p.genders||[]).join(', ')||'ไม่ระบุ'}</td>
