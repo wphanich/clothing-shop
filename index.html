@@ -281,6 +281,11 @@ header{
 .view.active{display:block}
 .section-title{font-size:20px;font-weight:700;margin:8px 0 16px}
 .order-card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;margin-bottom:14px}
+.message-item{padding:12px 0;border-bottom:1px dashed var(--line)}
+.message-item:last-child{border-bottom:none}
+.message-item.unread{background:#F7F8FF;margin:0 -22px;padding:12px 22px}
+.message-date{font-size:12px;color:var(--ink-soft);margin-bottom:4px}
+.message-text{font-size:14px;line-height:1.6;white-space:pre-wrap}
 .announce-card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin-bottom:16px}
 .announce-card img{width:100%;max-height:340px;object-fit:cover;display:block}
 .announce-body{padding:18px 20px}
@@ -409,7 +414,10 @@ header{
     <button class="nav-btn active" data-view="shop" onclick="showView('shop')">สินค้า</button>
     <button class="nav-btn" data-view="announcements" onclick="showView('announcements')">ประกาศ</button>
     <button class="nav-btn" data-view="orders" onclick="showView('orders')">คำสั่งซื้อ</button>
-    <button class="nav-btn" data-view="admin" id="adminNav" style="display:none" onclick="showView('admin')">จัดการร้าน</button>
+        <button class="nav-btn" data-view="admin" id="adminNav" style="display:none" onclick="showView('admin')">จัดการร้าน</button>
+    <button class="cart-btn" id="msgBellBtn" style="display:none;background:transparent;color:var(--ink)" onclick="openMessagesModal()">🔔
+      <span class="cart-badge" id="msgBadge" style="display:none">0</span>
+    </button>
     <button class="user-chip" id="userChip" onclick="onUserChip()">
       <span class="user-dot" id="userDot">?</span>
       <span id="userName">เข้าสู่ระบบ</span>
@@ -548,7 +556,7 @@ header{
       </div>
       <div style="overflow-x:auto">
         <table class="admin-table" id="adminCustomerTable">
-          <thead><tr><th>ชื่อ-นามสกุล</th><th>เบอร์โทร</th><th>ที่อยู่จัดส่ง</th><th>จำนวนคำสั่งซื้อ</th><th>ยอดซื้อสะสม</th></tr></thead>
+                    <thead><tr><th>ชื่อ-นามสกุล</th><th>เบอร์โทร</th><th>ที่อยู่จัดส่ง</th><th>จำนวนคำสั่งซื้อ</th><th>ยอดซื้อสะสม</th><th>ติดต่อ</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -742,6 +750,27 @@ header{
     <button class="big-btn indigo" style="margin-top:18px" onclick="saveAnnouncement()">บันทึกประกาศ</button>
   </div>
 </div>
+<!-- ================= MESSAGES MODAL (ลูกค้าดูข้อความ) ================= -->
+<div class="modal" id="messagesModal">
+  <div class="overlay show" onclick="closeModal('messagesModal')" style="position:absolute"></div>
+  <div class="modal-card">
+    <h3>ข้อความจากร้าน</h3>
+    <div class="modal-sub">ข้อความส่วนตัวที่ร้านส่งถึงคุณ</div>
+    <div id="messagesList" style="margin-top:10px"></div>
+  </div>
+</div>
+
+<!-- ================= MESSAGE COMPOSE MODAL (แอดมินเขียนข้อความ) ================= -->
+<div class="modal" id="messageComposeModal">
+  <div class="overlay show" onclick="closeModal('messageComposeModal')" style="position:absolute"></div>
+  <div class="modal-card">
+    <h3>ส่งข้อความถึง <span id="msgToName"></span></h3>
+    <input type="hidden" id="msgToUid">
+    <label>ข้อความ</label>
+    <textarea id="msgText" rows="4" placeholder="พิมพ์ข้อความถึงลูกค้าคนนี้"></textarea>
+    <button class="big-btn indigo" style="margin-top:16px" onclick="sendMessageToCustomer()">ส่งข้อความ</button>
+  </div>
+</div>
 
 <!-- ================= ADMIN PRODUCT FORM ================= -->
 <div class="modal" id="productModal">
@@ -856,6 +885,8 @@ let activeGender = 'ทั้งหมด';
 let confirmationResult = null;
 let recaptchaVerifier  = null;
 let unsubOrders = null, unsubAdminOrders = null;
+let unsubMessages = null;
+let myMessages = [];
 let allAdminOrders = [];
 let allCustomers = [];
 let unsubCustomers = null;
@@ -1066,7 +1097,9 @@ auth.onAuthStateChanged(async user => {
     myProfile = snap.exists ? snap.data() : null;
     el('userName').textContent = myProfile?.name || (user.phoneNumber ? fromE164(user.phoneNumber) : user.email) || 'ลูกค้า';
     el('userDot').textContent = (myProfile?.name || 'ค')[0];
-    watchMyOrders();
+        watchMyOrders();
+    watchMyMessages();
+    el('msgBellBtn').style.display = '';
     if (isAdmin){ watchAdminOrders(); watchCustomers(); }
     else if (document.getElementById('view-admin')?.classList.contains('active')) showView('shop');
     if (!myProfile) openProfile(true);   // สมาชิกใหม่ → กรอกที่อยู่ก่อน
@@ -1076,9 +1109,11 @@ auth.onAuthStateChanged(async user => {
     el('adminNav').style.display = 'none';
     el('userName').textContent = 'เข้าสู่ระบบ';
     el('userDot').textContent = '?';
+    el('msgBellBtn').style.display = 'none';
     if (unsubOrders) unsubOrders();
     if (unsubAdminOrders) unsubAdminOrders();
     if (unsubCustomers) unsubCustomers();
+    if (unsubMessages) unsubMessages();
     el('myOrders').innerHTML = loginPrompt();
     showView('shop');
   }
@@ -1533,6 +1568,42 @@ function watchMyOrders(){
     }, err => { console.error(err); toast('โหลดคำสั่งซื้อไม่สำเร็จ: ' + err.message); });
 }
 
+function watchMyMessages(){
+  if (unsubMessages) unsubMessages();
+  unsubMessages = db.collection('messages').where('toUid','==',currentUser.uid)
+    .onSnapshot(snap => {
+      myMessages = snap.docs.map(d=>({id:d.id,...d.data()}))
+        .sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
+      renderMessageBadge();
+    }, err => console.error(err));
+}
+function renderMessageBadge(){
+  const unread = myMessages.filter(m=>!m.read).length;
+  el('msgBadge').style.display = unread ? '' : 'none';
+  el('msgBadge').textContent = unread;
+}
+function messageDate(m){
+  return m.createdAt?.toDate ? m.createdAt.toDate().toLocaleString('th-TH',{dateStyle:'medium',timeStyle:'short'}) : '';
+}
+function openMessagesModal(){
+  el('messagesList').innerHTML = myMessages.length ? myMessages.map(m => `
+    <div class="message-item ${m.read?'':'unread'}">
+      <div class="message-date">${messageDate(m)}</div>
+      <div class="message-text">${m.text}</div>
+    </div>`).join('')
+    : `<div class="empty"><div class="big">💬</div>ยังไม่มีข้อความจากร้าน</div>`;
+  el('messagesModal').classList.add('show');
+  markMessagesRead();
+}
+async function markMessagesRead(){
+  const unread = myMessages.filter(m=>!m.read);
+  for (const m of unread){
+    try{ await db.collection('messages').doc(m.id).update({read:true}); }catch(err){ console.error(err); }
+  }
+}
+
+/* ============================================================}
+
 /* ============================================================
    9) ฝั่งผู้ดูแลร้าน
    ============================================================ */
@@ -1838,7 +1909,7 @@ function renderCustomers(){
   });
 
   const tb = el('adminCustomerTable').querySelector('tbody');
-  tb.innerHTML = list.length ? list.map(c => {
+    tb.innerHTML = list.length ? list.map(c => {
     const st = customerStats(c.uid);
     return `<tr>
       <td><b>${c.name || '-'}</b></td>
@@ -1846,13 +1917,37 @@ function renderCustomers(){
       <td>${c.address || '-'} ${c.province ? 'จ.'+c.province : ''} ${c.zipcode || ''}</td>
       <td>${st.count}</td>
       <td><b>${fmt(st.total)}</b></td>
+      <td style="white-space:nowrap">
+        <button class="mini-btn" onclick="openMessageCompose('${c.uid}','${(c.name||'-').replace(/'/g,"\\'")}')">ส่งข้อความ</button>
+        ${c.phone ? `<a class="mini-btn" href="sms:${c.phone}">SMS</a> <a class="mini-btn" href="tel:${c.phone}">โทร</a>` : ''}
+      </td>
     </tr>`;
   }).join('')
-    : `<tr><td colspan="5"><div class="empty" style="padding:30px 0"><div class="big">👤</div>ไม่พบลูกค้าตามเงื่อนไขที่ค้นหา</div></td></tr>`;
+    : `<tr><td colspan="6"><div class="empty" style="padding:30px 0"><div class="big">👤</div>ไม่พบลูกค้าตามเงื่อนไขที่ค้นหา</div></td></tr>`;
 
   el('custCount').textContent = allCustomers.length;
   el('custWithOrders').textContent = allCustomers.filter(c=>customerStats(c.uid).count > 0).length;
   el('custTotalSpend').textContent = fmt(allAdminOrders.reduce((s,o)=>s+(o.total||0),0));
+}
+
+function openMessageCompose(uid, name){
+  el('msgToUid').value = uid;
+  el('msgToName').textContent = name;
+  el('msgText').value = '';
+  el('messageComposeModal').classList.add('show');
+}
+async function sendMessageToCustomer(){
+  const uid = el('msgToUid').value;
+  const text = el('msgText').value.trim();
+  if (!text){ toast('พิมพ์ข้อความก่อนส่ง'); return; }
+  try{
+    await db.collection('messages').add({
+      toUid: uid, text, read: false,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    closeModal('messageComposeModal');
+    toast('ส่งข้อความแล้ว');
+  }catch(err){ toast('ส่งไม่สำเร็จ: ' + err.message); }
 }
 
 function exportCustomersToExcel(){
