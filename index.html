@@ -766,6 +766,16 @@ header{
   </div>
 </div>
 
+<!-- ================= MESSAGES MODAL (ลูกค้าดูข้อความ) ================= -->
+<div class="modal" id="messagesModal">
+  <div class="overlay show" onclick="closeModal('messagesModal')" style="position:absolute"></div>
+  <div class="modal-card">
+    <h3>ข้อความจากร้าน</h3>
+    <div class="modal-sub">ข้อความส่วนตัวที่ร้านส่งถึงคุณ</div>
+    <div id="messagesList" style="margin-top:10px"></div>
+  </div>
+</div>
+  
 <!-- ================= MESSAGE COMPOSE MODAL (แอดมินเขียนข้อความ) ================= -->
 <div class="modal" id="messageComposeModal">
   <div class="overlay show" onclick="closeModal('messageComposeModal')" style="position:absolute"></div>
