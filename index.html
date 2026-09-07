@@ -751,12 +751,18 @@ header{
   </div>
 </div>
 <!-- ================= MESSAGES MODAL (ลูกค้าดูข้อความ) ================= -->
-<div class="modal" id="messagesModal">
-  <div class="overlay show" onclick="closeModal('messagesModal')" style="position:absolute"></div>
+<div class="modal" id="messageComposeModal">
+  <div class="overlay show" onclick="closeModal('messageComposeModal')" style="position:absolute"></div>
   <div class="modal-card">
-    <h3>ข้อความจากร้าน</h3>
-    <div class="modal-sub">ข้อความส่วนตัวที่ร้านส่งถึงคุณ</div>
-    <div id="messagesList" style="margin-top:10px"></div>
+    <h3>ส่งข้อความถึง <span id="msgToName"></span></h3>
+    <input type="hidden" id="msgToUid">
+    <input type="hidden" id="msgToPhone">
+    <label>ข้อความ</label>
+    <textarea id="msgText" rows="4" placeholder="พิมพ์ข้อความถึงลูกค้าคนนี้"></textarea>
+    <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-weight:600">
+      <input type="checkbox" id="msgSendRealSms" style="width:auto"> ส่ง SMS จริงไปที่เบอร์ลูกค้าด้วย
+    </label>
+    <button class="big-btn indigo" style="margin-top:16px" onclick="sendMessageToCustomer()">ส่งข้อความ</button>
   </div>
 </div>
 
@@ -1918,7 +1924,7 @@ function renderCustomers(){
       <td>${st.count}</td>
       <td><b>${fmt(st.total)}</b></td>
       <td style="white-space:nowrap">
-        <button class="mini-btn" onclick="openMessageCompose('${c.uid}','${(c.name||'-').replace(/'/g,"\\'")}')">ส่งข้อความ</button>
+        <button class="mini-btn" onclick="openMessageCompose('${c.uid}','${(c.name||'-').replace(/'/g,"\\'")}','${c.phone||''}')">ส่งข้อความ</button>
         ${c.phone ? `<a class="mini-btn" href="sms:${c.phone}">SMS</a> <a class="mini-btn" href="tel:${c.phone}">โทร</a>` : ''}
       </td>
     </tr>`;
@@ -1930,24 +1936,48 @@ function renderCustomers(){
   el('custTotalSpend').textContent = fmt(allAdminOrders.reduce((s,o)=>s+(o.total||0),0));
 }
 
-function openMessageCompose(uid, name){
+const SMS_PROXY_URL = "https://script.google.com/macros/s/AKfycbxpcyDY9jaWgF2Ce_9ekR70MzcPafL5HlGn2XmD_bnWsm8EnJjZAurl7EQAS0dA_7ngtQ/exec";
+const SMS_PROXY_SECRET = "Wp82658265";
+
+function openMessageCompose(uid, name, phone){
   el('msgToUid').value = uid;
+  el('msgToPhone').value = phone || '';
   el('msgToName').textContent = name;
   el('msgText').value = '';
+  el('msgSendRealSms').checked = false;
   el('messageComposeModal').classList.add('show');
 }
 async function sendMessageToCustomer(){
   const uid = el('msgToUid').value;
+  const phone = el('msgToPhone').value;
   const text = el('msgText').value.trim();
+  const sendSms = el('msgSendRealSms').checked;
   if (!text){ toast('พิมพ์ข้อความก่อนส่ง'); return; }
   try{
     await db.collection('messages').add({
       toUid: uid, text, read: false,
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     });
+    if (sendSms){
+      if (phone) await sendRealSms(phone, text);
+      else toast('ลูกค้าคนนี้ไม่มีเบอร์โทรในระบบ ส่งได้แค่ข้อความในแอป');
+    }
     closeModal('messageComposeModal');
-    toast('ส่งข้อความแล้ว');
+    toast(sendSms && phone ? 'ส่งข้อความในแอป + SMS แล้ว' : 'ส่งข้อความแล้ว');
   }catch(err){ toast('ส่งไม่สำเร็จ: ' + err.message); }
+}
+async function sendRealSms(phone, msg){
+  const to = phone.replace('+','');
+  try{
+    const res = await fetch(SMS_PROXY_URL, {
+      method: 'POST',
+      body: JSON.stringify({ secret: SMS_PROXY_SECRET, to, msg })
+    });
+    const data = await res.json();
+    if (data && data.error){ toast('ส่ง SMS จริงไม่สำเร็จ: ' + data.error); }
+  }catch(err){
+    toast('เชื่อมต่อระบบ SMS ไม่สำเร็จ: ' + err.message);
+  }
 }
 
 function exportCustomersToExcel(){
