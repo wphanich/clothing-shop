@@ -2387,25 +2387,50 @@ async function exportSelectedOrdersPDF(){
   const list = allAdminOrders.filter(o => selectedOrderIds.has(o.id));
   if (!list.length){ toast('กรุณาติ๊กเลือกคำสั่งซื้อที่ต้องการก่อน'); return; }
 
-  const rowsHtml = list.flatMap(o => {
-    const fullAddress = `${o.shipping.address} จ.${o.shipping.province} ${o.shipping.zipcode}`;
-    return o.items.map(i => `
-      <tr>
-        <td>${o.shipping.name}</td>
-        <td>${fullAddress}</td>
-        <td>${fromE164(o.shipping.phone)}</td>
+  /* รวมคำสั่งซื้อของคนชื่อเดียวกันเข้าด้วยกัน — แสดงชื่อ/ที่อยู่/เบอร์โทร แค่บรรทัดเดียวต่อคน
+     แต่รายการสินค้าแต่ละชิ้นยังแยกแถวตามปกติ */
+  const groups = [];
+  const groupIndex = {};
+  list.forEach(o => {
+    const key = o.shipping.name;
+    if (!(key in groupIndex)){
+      groupIndex[key] = groups.length;
+      groups.push({
+        name: o.shipping.name,
+        address: `${o.shipping.address} จ.${o.shipping.province} ${o.shipping.zipcode}`,
+        phone: fromE164(o.shipping.phone),
+        items: []
+      });
+    }
+    groups[groupIndex[key]].items.push(...o.items);
+  });
+
+  let grandQty = 0;
+  const rowsHtml = groups.map(g => {
+    const qtyTotal = g.items.reduce((s,i)=>s+(i.qty||0),0);
+    grandQty += qtyTotal;
+    const itemRows = g.items.map((i,idx) => {
+      const nameCell = idx===0
+        ? `<td rowspan="${g.items.length}">${g.name}</td><td rowspan="${g.items.length}">${g.address}</td><td rowspan="${g.items.length}">${g.phone}</td>`
+        : '';
+      return `<tr>${nameCell}
         <td>${i.name}</td>
         <td>${(i.gender && i.gender !== '-') ? i.gender : 'ไม่ระบุ'}</td>
         <td>${i.size}</td>
         <td>${i.qty}</td>
-      </tr>`);
+      </tr>`;
+    }).join('');
+    const subtotalRow = `<tr style="background:#f7f7f2"><td colspan="6" style="text-align:right;font-weight:600">รวมของคุณ${g.name} (ชิ้น)</td><td style="font-weight:700">${qtyTotal}</td></tr>`;
+    return itemRows + subtotalRow;
   }).join('');
+
+  const grandRow = `<tr style="background:#e8e8e0"><td colspan="6" style="text-align:right;font-weight:700">รวมทั้งหมดทุกคน (ชิ้น)</td><td style="font-weight:800">${grandQty}</td></tr>`;
 
   const wrap = document.createElement('div');
   wrap.style.cssText = 'position:fixed;left:-9999px;top:0;width:1100px;background:#fff;padding:24px;font-family:Anuphan,sans-serif;color:#111';
   wrap.innerHTML = `
     <h2 style="font-family:Prompt,sans-serif;margin-bottom:4px">รายการคำสั่งซื้อที่เลือก</h2>
-    <div style="font-size:13px;color:#666;margin-bottom:16px">พิมพ์เมื่อ ${new Date().toLocaleString('th-TH',{dateStyle:'medium',timeStyle:'short'})} · ทั้งหมด ${list.length} คำสั่งซื้อ</div>
+    <div style="font-size:13px;color:#666;margin-bottom:16px">พิมพ์เมื่อ ${new Date().toLocaleString('th-TH',{dateStyle:'medium',timeStyle:'short'})} · ${groups.length} คน · ${list.length} คำสั่งซื้อ</div>
     <table style="width:100%;border-collapse:collapse;font-size:13px">
       <thead>
         <tr style="background:#f1f1ec">
@@ -2418,9 +2443,13 @@ async function exportSelectedOrdersPDF(){
           <th style="border:1px solid #ccc;padding:8px;text-align:left">จำนวน</th>
         </tr>
       </thead>
-      <tbody>${rowsHtml}</tbody>
+      <tbody>${rowsHtml}${grandRow}</tbody>
     </table>`;
-  wrap.querySelectorAll('td').forEach(td => td.style.cssText = 'border:1px solid #ccc;padding:7px 8px;vertical-align:top');
+  wrap.querySelectorAll('td').forEach(td => {
+    td.style.border = '1px solid #ccc';
+    td.style.padding = '7px 8px';
+    td.style.verticalAlign = 'top';
+  });
   document.body.appendChild(wrap);
 
   try{
