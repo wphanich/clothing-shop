@@ -525,9 +525,10 @@ header{
             <option value="confirmed">ชำระเงินแล้ว</option>
           </select>
         </div>
-        <div class="report-actions">
+                <div class="report-actions">
           <button class="nav-btn" onclick="clearReportFilter()">ล้างตัวกรอง</button>
           <button class="export-btn" id="exportExcelBtn" onclick="exportOrdersToExcel()">⬇ ดาวน์โหลด Excel</button>
+          <button class="export-btn" onclick="exportConfirmedOrdersSummary()">⬇ รายงานยืนยันแล้ว (สรุปยอด)</button>
         </div>
       </div>
       <div class="summary-grid">
@@ -2361,6 +2362,61 @@ function exportOrdersToExcel(){
   const from = el('repFrom').value, to = el('repTo').value;
   const rangeLabel = (from||to) ? `_${from||'เริ่มต้น'}_ถึง_${to||'ปัจจุบัน'}` : '';
   const filename = `รายงานคำสั่งซื้อ${rangeLabel}_${new Date().toISOString().slice(0,10)}.xlsx`;
+    XLSX.writeFile(wb, filename);
+  toast('ดาวน์โหลดไฟล์ Excel แล้ว');
+}
+
+function exportConfirmedOrdersSummary(){
+  const list = allAdminOrders.filter(o => (o.paymentStatus||'unpaid') === 'confirmed');
+  if (!list.length){ toast('ยังไม่มีคำสั่งซื้อที่ยืนยันการชำระเงินแล้ว'); return; }
+
+  const rows = [];
+  let grandTotal = 0;
+
+  list.forEach(o => {
+    const fullAddress = `${o.shipping.address} จ.${o.shipping.province} ${o.shipping.zipcode}`;
+    o.items.forEach(i => {
+      rows.push({
+        'ชื่อ-นามสกุล': o.shipping.name,
+        'ที่อยู่': fullAddress,
+        'เบอร์โทร': fromE164(o.shipping.phone),
+        'รายละเอียดสินค้า': i.name,
+        'เพศ': (i.gender && i.gender !== '-') ? i.gender : 'ไม่ระบุ',
+        'ไซส์': i.size,
+        'จำนวน': i.qty,
+        'ยอดรวม (บาท)': ''
+      });
+    });
+    rows.push({
+      'ชื่อ-นามสกุล': '',
+      'ที่อยู่': '',
+      'เบอร์โทร': '',
+      'รายละเอียดสินค้า': `รวมคำสั่งซื้อของ ${o.shipping.name}`,
+      'เพศ': '',
+      'ไซส์': '',
+      'จำนวน': '',
+      'ยอดรวม (บาท)': o.total || 0
+    });
+    grandTotal += (o.total || 0);
+  });
+
+  rows.push({
+    'ชื่อ-นามสกุล': '',
+    'ที่อยู่': '',
+    'เบอร์โทร': '',
+    'รายละเอียดสินค้า': 'ยอดรวมทั้งหมดทุกคำสั่งซื้อ',
+    'เพศ': '',
+    'ไซส์': '',
+    'จำนวน': '',
+    'ยอดรวม (บาท)': grandTotal
+  });
+
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [{wch:20},{wch:36},{wch:14},{wch:26},{wch:10},{wch:8},{wch:8},{wch:16}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'สรุปยืนยันแล้ว');
+
+  const filename = `สรุปคำสั่งซื้อที่ยืนยันแล้ว_${new Date().toISOString().slice(0,10)}.xlsx`;
   XLSX.writeFile(wb, filename);
   toast('ดาวน์โหลดไฟล์ Excel แล้ว');
 }
