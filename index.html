@@ -10,6 +10,8 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
 :root{
@@ -528,7 +530,7 @@ header{
                 <div class="report-actions">
           <button class="nav-btn" onclick="clearReportFilter()">ล้างตัวกรอง</button>
           <button class="export-btn" id="exportExcelBtn" onclick="exportOrdersToExcel()">⬇ ดาวน์โหลด Excel</button>
-          <button class="export-btn" onclick="exportConfirmedOrdersSummary()">⬇ รายงานยืนยันแล้ว (สรุปยอด)</button>
+          <button class="export-btn" onclick="exportSelectedOrdersPDF()">⬇ ดาวน์โหลด PDF (เฉพาะที่เลือก)</button>
         </div>
       </div>
       <div class="summary-grid">
@@ -540,7 +542,7 @@ header{
       </div>
       <div style="overflow-x:auto">
         <table class="admin-table" id="adminOrderTable">
-          <thead><tr><th>เลขที่</th><th>ลูกค้า / ที่อยู่จัดส่ง</th><th>รายการ</th><th>ยอดรวม</th><th>การชำระเงิน</th><th>สถานะ</th></tr></thead>
+          <thead><tr><th style="width:36px"><input type="checkbox" id="selectAllOrders" onchange="toggleSelectAllOrders(this)"></th><th>เลขที่</th><th>ลูกค้า / ที่อยู่จัดส่ง</th><th>รายการ</th><th>ยอดรวม</th><th>การชำระเงิน</th><th>สถานะ</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -913,6 +915,7 @@ let unsubOrders = null, unsubAdminOrders = null;
 let unsubMessages = null;
 let myMessages = [];
 let allAdminOrders = [];
+let selectedOrderIds = new Set();
 let allCustomers = [];
 let unsubCustomers = null;
 
@@ -2301,7 +2304,8 @@ function renderAdminOrders(){
   tb.innerHTML = list.length ? list.map(o => {
     const payStatus = o.paymentStatus || 'unpaid';
     const payClass = payStatus==='confirmed' ? 'ok' : payStatus==='submitted' ? 'wait' : 'unpaid';
-    return `<tr>
+        return `<tr>
+      <td><input type="checkbox" class="orderCheckbox" value="${o.id}" ${selectedOrderIds.has(o.id)?'checked':''} onchange="toggleOrderSelect('${o.id}', this.checked)"></td>
       <td><b>#${o.orderNo||o.id.slice(0,8)}</b><br><span class="hint">${o.createdAt?.toDate?o.createdAt.toDate().toLocaleString('th-TH',{dateStyle:'short',timeStyle:'short'}):''}</span></td>
       <td>${o.shipping.name}<br><span class="hint">${o.shipping.address} จ.${o.shipping.province} ${o.shipping.zipcode}<br>โทร ${fromE164(o.shipping.phone)}</span></td>
       <td>${o.items.map(i=>`${i.name} (${i.size}${itemGenderLabel(i)}${itemColorLabel(i)}) × ${i.qty}`).join('<br>')}<br><span class="hint">${orderQtySummaryText(o)}</span></td>
@@ -2317,7 +2321,7 @@ function renderAdminOrders(){
         </select>
       </td></tr>`;
   }).join('')
-    : `<tr><td colspan="6"><div class="empty" style="padding:30px 0"><div class="big">📄</div>ไม่พบคำสั่งซื้อตามเงื่อนไขที่เลือก</div></td></tr>`;
+    : `<tr><td colspan="7"><div class="empty" style="padding:30px 0"><div class="big">📄</div>ไม่พบคำสั่งซื้อตามเงื่อนไขที่เลือก</div></td></tr>`;
 
   el('sumCount').textContent = list.length;
   el('sumRevenue').textContent = fmt(list.reduce((s,o)=>s+(o.total||0),0));
@@ -2366,59 +2370,85 @@ function exportOrdersToExcel(){
   toast('ดาวน์โหลดไฟล์ Excel แล้ว');
 }
 
-function exportConfirmedOrdersSummary(){
-  const list = allAdminOrders.filter(o => (o.paymentStatus||'unpaid') === 'confirmed');
-  if (!list.length){ toast('ยังไม่มีคำสั่งซื้อที่ยืนยันการชำระเงินแล้ว'); return; }
+function toggleOrderSelect(id, checked){
+  if (checked) selectedOrderIds.add(id); else selectedOrderIds.delete(id);
+  const all = el('selectAllOrders');
+  if (all) all.checked = false;
+}
 
-  const rows = [];
-  let grandTotal = 0;
+function toggleSelectAllOrders(checkboxEl){
+  const list = getFilteredAdminOrders();
+  if (checkboxEl.checked){ list.forEach(o => selectedOrderIds.add(o.id)); }
+  else { list.forEach(o => selectedOrderIds.delete(o.id)); }
+  renderAdminOrders();
+}
 
-  list.forEach(o => {
+async function exportSelectedOrdersPDF(){
+  const list = allAdminOrders.filter(o => selectedOrderIds.has(o.id));
+  if (!list.length){ toast('กรุณาติ๊กเลือกคำสั่งซื้อที่ต้องการก่อน'); return; }
+
+  const rowsHtml = list.flatMap(o => {
     const fullAddress = `${o.shipping.address} จ.${o.shipping.province} ${o.shipping.zipcode}`;
-    o.items.forEach(i => {
-      rows.push({
-        'ชื่อ-นามสกุล': o.shipping.name,
-        'ที่อยู่': fullAddress,
-        'เบอร์โทร': fromE164(o.shipping.phone),
-        'รายละเอียดสินค้า': i.name,
-        'เพศ': (i.gender && i.gender !== '-') ? i.gender : 'ไม่ระบุ',
-        'ไซส์': i.size,
-        'จำนวน': i.qty,
-        'ยอดรวม (บาท)': ''
-      });
-    });
-    rows.push({
-      'ชื่อ-นามสกุล': '',
-      'ที่อยู่': '',
-      'เบอร์โทร': '',
-      'รายละเอียดสินค้า': `รวมคำสั่งซื้อของ ${o.shipping.name}`,
-      'เพศ': '',
-      'ไซส์': '',
-      'จำนวน': '',
-      'ยอดรวม (บาท)': o.total || 0
-    });
-    grandTotal += (o.total || 0);
-  });
+    return o.items.map(i => `
+      <tr>
+        <td>${o.shipping.name}</td>
+        <td>${fullAddress}</td>
+        <td>${fromE164(o.shipping.phone)}</td>
+        <td>${i.name}</td>
+        <td>${(i.gender && i.gender !== '-') ? i.gender : 'ไม่ระบุ'}</td>
+        <td>${i.size}</td>
+        <td>${i.qty}</td>
+      </tr>`);
+  }).join('');
 
-  rows.push({
-    'ชื่อ-นามสกุล': '',
-    'ที่อยู่': '',
-    'เบอร์โทร': '',
-    'รายละเอียดสินค้า': 'ยอดรวมทั้งหมดทุกคำสั่งซื้อ',
-    'เพศ': '',
-    'ไซส์': '',
-    'จำนวน': '',
-    'ยอดรวม (บาท)': grandTotal
-  });
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'position:fixed;left:-9999px;top:0;width:1100px;background:#fff;padding:24px;font-family:Anuphan,sans-serif;color:#111';
+  wrap.innerHTML = `
+    <h2 style="font-family:Prompt,sans-serif;margin-bottom:4px">รายการคำสั่งซื้อที่เลือก</h2>
+    <div style="font-size:13px;color:#666;margin-bottom:16px">พิมพ์เมื่อ ${new Date().toLocaleString('th-TH',{dateStyle:'medium',timeStyle:'short'})} · ทั้งหมด ${list.length} คำสั่งซื้อ</div>
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead>
+        <tr style="background:#f1f1ec">
+          <th style="border:1px solid #ccc;padding:8px;text-align:left">ชื่อ-นามสกุล</th>
+          <th style="border:1px solid #ccc;padding:8px;text-align:left">ที่อยู่</th>
+          <th style="border:1px solid #ccc;padding:8px;text-align:left">เบอร์โทร</th>
+          <th style="border:1px solid #ccc;padding:8px;text-align:left">รายละเอียดสินค้า</th>
+          <th style="border:1px solid #ccc;padding:8px;text-align:left">เพศ</th>
+          <th style="border:1px solid #ccc;padding:8px;text-align:left">ไซส์</th>
+          <th style="border:1px solid #ccc;padding:8px;text-align:left">จำนวน</th>
+        </tr>
+      </thead>
+      <tbody>${rowsHtml}</tbody>
+    </table>`;
+  wrap.querySelectorAll('td').forEach(td => td.style.cssText = 'border:1px solid #ccc;padding:7px 8px;vertical-align:top');
+  document.body.appendChild(wrap);
 
-  const ws = XLSX.utils.json_to_sheet(rows);
-  ws['!cols'] = [{wch:20},{wch:36},{wch:14},{wch:26},{wch:10},{wch:8},{wch:8},{wch:16}];
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'สรุปยืนยันแล้ว');
-
-  const filename = `สรุปคำสั่งซื้อที่ยืนยันแล้ว_${new Date().toISOString().slice(0,10)}.xlsx`;
-  XLSX.writeFile(wb, filename);
-  toast('ดาวน์โหลดไฟล์ Excel แล้ว');
+  try{
+    const canvas = await html2canvas(wrap, {scale:2, backgroundColor:'#ffffff'});
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF('p','mm','a4');
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const imgWidth = pageWidth;
+    const imgHeight = canvas.height * imgWidth / canvas.width;
+    const imgData = canvas.toDataURL('image/png');
+    let heightLeft = imgHeight;
+    let position = 0;
+    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+    heightLeft -= pageHeight;
+    while (heightLeft > 0){
+      position = heightLeft - imgHeight;
+      pdf.addPage();
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+    }
+    pdf.save(`รายการคำสั่งซื้อ_${new Date().toISOString().slice(0,10)}.pdf`);
+    toast('ดาวน์โหลดไฟล์ PDF แล้ว');
+  } catch(err){
+    toast('สร้าง PDF ไม่สำเร็จ: ' + err.message);
+  } finally {
+    document.body.removeChild(wrap);
+  }
 }
 
 async function setOrderStatus(id, status){
